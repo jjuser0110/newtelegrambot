@@ -117,7 +117,7 @@ class UpdateHandler
      */
     protected function autoReply(Bot $bot, TelegramUser $user, ?string $text, bool $allowFallback = true): void
     {
-        if (! $this->autoReply) {
+        if (! $this->autoReply || ! $user->auto_reply) {
             return;
         }
 

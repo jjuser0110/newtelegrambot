@@ -46,8 +46,11 @@ Route::middleware('auth')->group(function () {
                 ->parameters(['saved-messages' => 'savedMessage']);
 
             Route::get('/bots/{bot}/chats', [ChatController::class, 'index'])->name('chats.index');
+            Route::get('/bots/{bot}/chats-latest', [ChatController::class, 'latest'])->name('chats.latest');
             Route::get('/bots/{bot}/chats/{telegramUser}', [ChatController::class, 'show'])->name('chats.show');
             Route::post('/bots/{bot}/chats/{telegramUser}', [ChatController::class, 'send'])->name('chats.send');
+            Route::get('/bots/{bot}/chats/{telegramUser}/messages', [ChatController::class, 'messages'])->name('chats.messages');
+            Route::post('/bots/{bot}/chats/{telegramUser}/auto-reply', [ChatController::class, 'toggleAutoReply'])->name('chats.auto-reply');
 
             Route::get('/bots/{bot}/broadcasts', [BroadcastController::class, 'index'])->name('broadcasts.index');
             Route::get('/bots/{bot}/broadcasts/create', [BroadcastController::class, 'create'])->name('broadcasts.create');

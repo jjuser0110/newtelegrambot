@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Bot;
 use App\Models\TelegramUser;
 use App\Services\MessageSender;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
@@ -28,26 +30,82 @@ class ChatController extends Controller
             ->paginate(30)
             ->withQueryString();
 
-        return view('chats.index', compact('bot', 'users'));
+        $latestMessageId = (int) $bot->messages()->max('id');
+
+        return view('chats.index', compact('bot', 'users', 'latestMessageId'));
+    }
+
+    /**
+     * Polled by the chat list: id of the newest message of this bot, so the page knows when to refresh.
+     */
+    public function latest(Bot $bot): JsonResponse
+    {
+        $this->ownBot($bot);
+
+        return response()->json(['latest_message_id' => (int) $bot->messages()->max('id')]);
     }
 
     public function show(Bot $bot, TelegramUser $telegramUser): View
     {
         $this->ownBot($bot);
-        $messages = $telegramUser->messages()->latest()->limit(200)->get()->reverse();
+        $messages = $telegramUser->messages()->latest('id')->limit(200)->get()->reverse();
         $savedMessages = $bot->savedMessages()->latest()->get();
-        $savedKeys = $savedMessages->map(fn ($saved) => $saved->from_chat_id.':'.$saved->message_id)->flip();
 
         return view('chats.show', [
             'bot' => $bot,
             'tgUser' => $telegramUser,
             'messages' => $messages,
             'savedMessages' => $savedMessages,
-            'savedKeys' => $savedKeys,
+            'savedKeys' => $this->savedKeys($bot),
+            'lastMessageId' => (int) ($messages->last()?->id ?? 0),
         ]);
     }
 
-    public function send(Request $request, Bot $bot, TelegramUser $telegramUser, MessageSender $sender): RedirectResponse
+    /**
+     * Polled by the open chat: messages newer than ?after=id, rendered as HTML bubbles.
+     */
+    public function messages(Request $request, Bot $bot, TelegramUser $telegramUser): JsonResponse
+    {
+        $this->ownBot($bot);
+        $after = $request->integer('after');
+
+        $messages = $telegramUser->messages()->where('id', '>', $after)->orderBy('id')->limit(100)->get();
+        $savedKeys = $this->savedKeys($bot);
+        $telegramUser->refresh();
+
+        return response()->json([
+            'html' => $messages->map(fn ($message) => view('partials.chat-message', [
+                'm' => $message,
+                'bot' => $bot,
+                'savedKeys' => $savedKeys,
+            ])->render())->implode(''),
+            'last_id' => (int) ($messages->last()?->id ?? $after),
+            'new_incoming' => $messages->where('direction', 'in')->count(),
+            'auto_reply' => $telegramUser->auto_reply,
+            'is_blocked' => $telegramUser->is_blocked,
+        ]);
+    }
+
+    /**
+     * Turn the bot's auto-replies on/off for this one Telegram user (so a human can chat normally).
+     */
+    public function toggleAutoReply(Request $request, Bot $bot, TelegramUser $telegramUser): JsonResponse|RedirectResponse
+    {
+        $this->ownBot($bot);
+
+        $enabled = $request->has('auto_reply') ? $request->boolean('auto_reply') : ! $telegramUser->auto_reply;
+        $telegramUser->update(['auto_reply' => $enabled]);
+
+        $message = $enabled ? 'Auto-reply is ON for this user.' : 'Auto-reply is OFF for this user — you are chatting manually.';
+
+        if ($request->expectsJson()) {
+            return response()->json(['auto_reply' => $enabled, 'message' => $message]);
+        }
+
+        return back()->with('success', $message);
+    }
+
+    public function send(Request $request, Bot $bot, TelegramUser $telegramUser, MessageSender $sender): JsonResponse|RedirectResponse
     {
         $this->ownBot($bot);
 
@@ -70,9 +128,30 @@ class ChatController extends Controller
                 $sender->send($bot, $telegramUser, $request->message, $image, $buttons);
             }
         } catch (Throwable $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Send failed: '.$e->getMessage()], 422);
+            }
+
             return back()->withInput()->withErrors(['message' => 'Send failed: '.$e->getMessage()]);
         }
 
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
         return back()->with('success', 'Message sent.');
+    }
+
+    /**
+     * "chat_id:message_id" keys of messages already saved for reuse, to show "saved" instead of a Save button.
+     *
+     * @return Collection<string, int>
+     */
+    private function savedKeys(Bot $bot): Collection
+    {
+        return $bot->savedMessages()
+            ->get(['from_chat_id', 'message_id'])
+            ->map(fn ($saved) => $saved->from_chat_id.':'.$saved->message_id)
+            ->flip();
     }
 }

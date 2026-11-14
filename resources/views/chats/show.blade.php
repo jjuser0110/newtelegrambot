@@ -7,59 +7,35 @@
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white">
-                <b>{{ $tgUser->displayName() }}</b>
-                @if($tgUser->username)<span class="text-muted">&#64;{{ $tgUser->username }}</span>@endif
-                @if($tgUser->is_blocked)<span class="badge text-bg-danger">blocked bot</span>@endif
+            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <b>{{ $tgUser->displayName() }}</b>
+                    @if($tgUser->username)<span class="text-muted">&#64;{{ $tgUser->username }}</span>@endif
+                    <span id="blocked-badge" class="badge text-bg-danger {{ $tgUser->is_blocked ? '' : 'd-none' }}">blocked bot</span>
+                    <span class="badge text-bg-light border ms-1" title="New messages appear automatically">
+                        <span class="spinner-grow spinner-grow-sm text-success" style="width: .5rem; height: .5rem;"></span> live
+                    </span>
+                </div>
+                <div class="form-check form-switch mb-0" title="When OFF, the bot does not auto-reply to this user, so you can chat with them yourself.">
+                    <input class="form-check-input" type="checkbox" role="switch" id="auto-reply-switch" @checked($tgUser->auto_reply)>
+                    <label class="form-check-label small" for="auto-reply-switch" id="auto-reply-label">
+                        {{ $tgUser->auto_reply ? 'Auto-reply ON' : 'Auto-reply OFF (manual chat)' }}
+                    </label>
+                </div>
             </div>
             <div class="card-body chat-box" id="chat-box">
-                @forelse($messages as $m)
-                    <div class="d-flex mb-2 {{ $m->direction === 'out' ? 'justify-content-end' : '' }}">
-                        <div class="bubble p-2 rounded shadow-sm {{ $m->direction === 'out' ? 'bg-primary text-white' : 'bg-white' }}">
-                            @if($m->image_path)
-                                <img src="{{ asset('storage/'.$m->image_path) }}" class="d-block mb-1" alt="">
-                            @elseif($m->type === 'photo' && $m->direction === 'in')
-                                <div class="fst-italic small"><i class="bi bi-image"></i> [photo]</div>
-                            @elseif($m->type === 'callback')
-                                <div class="fst-italic small"><i class="bi bi-hand-index"></i> pressed button:</div>
-                            @elseif($m->type === 'other')
-                                <div class="fst-italic small">[non-text message]</div>
-                            @elseif(in_array($m->type, ['copy', 'forward'], true))
-                                <div class="fst-italic small"><i class="bi bi-bookmark-star"></i> {{ $m->type === 'forward' ? 'Forwarded' : 'Copied' }} saved message: {{ $m->payload['saved_label'] ?? '' }}</div>
-                            @endif
-                            @if($m->message !== null && $m->message !== '')<div class="msg-text">{{ $m->message }}</div>@endif
-                            @foreach($m->payload['buttons'] ?? [] as $b)
-                                <div class="small border rounded px-2 mt-1">{{ $b['text'] }}</div>
-                            @endforeach
-                            <div class="small opacity-75 d-flex justify-content-between gap-3 mt-1">
-                                <span>
-                                    @if($m->telegram_message_id)msg #{{ $m->telegram_message_id }}@endif
-                                    @if($m->direction === 'in' && $m->telegram_message_id && $m->type !== 'callback')
-                                        @if(isset($savedKeys[$m->chat_id.':'.$m->telegram_message_id]))
-                                            · <span class="text-success"><i class="bi bi-bookmark-check"></i> saved</span>
-                                        @else
-                                            · <form method="POST" action="{{ route('bots.saved-messages.store', $bot) }}" class="d-inline save-message-form">
-                                                @csrf
-                                                <input type="hidden" name="telegram_message_id" value="{{ $m->id }}">
-                                                <input type="hidden" name="label" value="">
-                                                <button class="btn btn-link btn-sm p-0 align-baseline" title="Save to reuse as a reply or broadcast"><i class="bi bi-bookmark-plus"></i> Save</button>
-                                            </form>
-                                        @endif
-                                    @endif
-                                </span>
-                                <span>{{ $m->created_at->format('Y-m-d H:i') }}</span>
-                            </div>
-                        </div>
-                    </div>
-                @empty
-                    <div class="text-muted text-center">No messages.</div>
-                @endforelse
+                <div id="chat-empty" class="text-muted text-center {{ $messages->isEmpty() ? '' : 'd-none' }}">No messages.</div>
+                @foreach($messages as $m)
+                    @include('partials.chat-message', ['m' => $m, 'bot' => $bot, 'savedKeys' => $savedKeys])
+                @endforeach
             </div>
             <div class="card-footer bg-white">
-                <form method="POST" action="{{ route('chats.send', [$bot, $tgUser]) }}" enctype="multipart/form-data" data-loading="Sending message…">
+                <div id="send-error" class="alert alert-danger py-2 small d-none"></div>
+                <form method="POST" action="{{ route('chats.send', [$bot, $tgUser]) }}" enctype="multipart/form-data" id="send-form">
                     @csrf
                     <div class="compose-only">
-                        <textarea name="message" rows="3" class="form-control mb-2" placeholder="Type a message to send via &#64;{{ $bot->username }}" maxlength="4096">{{ old('message') }}</textarea>
+                        <textarea name="message" rows="3" class="form-control mb-2" id="message-input"
+                                  placeholder="Type a message to send via &#64;{{ $bot->username }} (Enter to send, Shift+Enter for a new line)" maxlength="4096">{{ old('message') }}</textarea>
                         <input type="file" name="image" accept="image/*" class="form-control mb-2">
                     </div>
                     <details class="mb-2" @if($savedMessages->isNotEmpty() && old('saved_message_id')) open @endif>
@@ -70,7 +46,7 @@
                         <summary class="small text-muted">Add buttons</summary>
                         <div class="mt-2">@include('partials.buttons', ['buttons' => []])</div>
                     </details>
-                    <button class="btn btn-primary"><i class="bi bi-send"></i> Send</button>
+                    <button class="btn btn-primary" id="send-button"><i class="bi bi-send"></i> Send</button>
                 </form>
             </div>
         </div>
@@ -96,17 +72,152 @@
 
 @push('scripts')
 <script>
-const box = document.getElementById('chat-box');
-box.scrollTop = box.scrollHeight;
-document.querySelectorAll('.save-message-form').forEach((form) => {
-    form.addEventListener('submit', (event) => {
+(() => {
+    const box = document.getElementById('chat-box');
+    const form = document.getElementById('send-form');
+    const input = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-button');
+    const errorBox = document.getElementById('send-error');
+    const autoSwitch = document.getElementById('auto-reply-switch');
+    const autoLabel = document.getElementById('auto-reply-label');
+    const csrf = form.querySelector('[name=_token]').value;
+    const messagesUrl = @json(route('chats.messages', [$bot, $tgUser]));
+    const autoReplyUrl = @json(route('chats.auto-reply', [$bot, $tgUser]));
+    const baseTitle = document.title;
+    let lastId = {{ $lastMessageId }};
+    let unread = 0;
+    let polling = false;
+    let pollAgain = false;
+
+    const scrollToBottom = () => { box.scrollTop = box.scrollHeight; };
+    const isNearBottom = () => box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+    scrollToBottom();
+
+    const setAutoReply = (enabled) => {
+        autoSwitch.checked = enabled;
+        autoLabel.textContent = enabled ? 'Auto-reply ON' : 'Auto-reply OFF (manual chat)';
+    };
+
+    /** Fetch messages newer than lastId and append them. */
+    const poll = async () => {
+        if (polling) {
+            pollAgain = true;
+            return;
+        }
+        polling = true;
+        try {
+            const response = await fetch(`${messagesUrl}?after=${lastId}`, { headers: { 'Accept': 'application/json' } });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.html) {
+                    const stick = isNearBottom();
+                    box.insertAdjacentHTML('beforeend', data.html);
+                    document.getElementById('chat-empty').classList.add('d-none');
+                    if (stick) {
+                        scrollToBottom();
+                    }
+                    if (document.hidden && data.new_incoming > 0) {
+                        unread += data.new_incoming;
+                        document.title = `(${unread}) New message · ${baseTitle}`;
+                    }
+                }
+                lastId = data.last_id;
+                setAutoReply(data.auto_reply);
+                document.getElementById('blocked-badge').classList.toggle('d-none', !data.is_blocked);
+            }
+        } catch (e) {
+            // network hiccup: try again on the next tick
+        } finally {
+            polling = false;
+            if (pollAgain) {
+                pollAgain = false;
+                poll();
+            }
+        }
+    };
+    setInterval(poll, 3000);
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            unread = 0;
+            document.title = baseTitle;
+            poll();
+        }
+    });
+
+    /** Send without reloading the page. */
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        errorBox.classList.add('d-none');
+        sendButton.disabled = true;
+        sendButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending…';
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: new FormData(form),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const errors = data.errors ? Object.values(data.errors).flat() : [data.message || 'Send failed.'];
+                errorBox.textContent = errors.join(' ');
+                errorBox.classList.remove('d-none');
+                return;
+            }
+            input.value = '';
+            form.querySelector('[name=image]').value = '';
+            const savedSelect = form.querySelector('[name=saved_message_id]');
+            if (savedSelect) {
+                savedSelect.value = '';
+                savedSelect.dispatchEvent(new Event('change'));
+            }
+            await poll();
+            scrollToBottom();
+        } catch (e) {
+            errorBox.textContent = 'Network error, message not sent.';
+            errorBox.classList.remove('d-none');
+        } finally {
+            sendButton.disabled = false;
+            sendButton.innerHTML = '<i class="bi bi-send"></i> Send';
+            input.focus();
+        }
+    });
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            form.requestSubmit();
+        }
+    });
+
+    /** Per-user auto-reply switch. */
+    autoSwitch.addEventListener('change', async () => {
+        const wanted = autoSwitch.checked;
+        try {
+            const response = await fetch(autoReplyUrl, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify({ auto_reply: wanted }),
+            });
+            const data = await response.json();
+            setAutoReply(data.auto_reply);
+        } catch (e) {
+            setAutoReply(!wanted);
+        }
+    });
+
+    /** "Save" buttons on bubbles (also on bubbles added live). */
+    box.addEventListener('submit', (event) => {
+        const saveForm = event.target.closest('.save-message-form');
+        if (!saveForm) {
+            return;
+        }
         const label = prompt('Name for this saved message (e.g. "Promo Nov"):', '');
         if (label === null) {
             event.preventDefault();
             return;
         }
-        form.querySelector('[name=label]').value = label;
+        saveForm.querySelector('[name=label]').value = label;
     });
-});
+})();
 </script>
 @endpush
