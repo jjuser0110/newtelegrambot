@@ -9,7 +9,9 @@ use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request as HttpRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class TelegramBotReplyTest extends TestCase
@@ -180,22 +182,22 @@ class TelegramBotReplyTest extends TestCase
         $this->actingAs($bot->user)->get(route('chats.index', $bot))->assertOk()->assertSee('Cara');
         $this->actingAs($bot->user)->get(route('bots.show', $bot))->assertOk();
         $this->actingAs($bot->user)->get(route('bots.replies.create', $bot))->assertOk();
-        $this->actingAs($bot->user)->get(route('chats.broadcast', $bot))->assertOk();
+        $this->actingAs($bot->user)->get(route('broadcasts.create', $bot))->assertOk();
     }
 
     public function test_reply_with_image_upload(): void
     {
         $this->fakeTelegram();
-        \Illuminate\Support\Facades\Storage::fake('public');
+        Storage::fake('public');
         $bot = $this->makeBot();
 
         $this->actingAs($bot->user)->post(route('bots.replies.store', $bot), [
             'trigger' => '/start', 'message' => 'Look', 'is_active' => 1,
-            'image' => \Illuminate\Http\UploadedFile::fake()->image('promo.jpg'),
+            'image' => UploadedFile::fake()->image('promo.jpg'),
         ])->assertRedirect(route('bots.show', $bot));
 
         $reply = $bot->replies()->firstOrFail();
-        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($reply->image_path);
+        Storage::disk('public')->assertExists($reply->image_path);
 
         $this->postJson("/telegram/webhook/{$bot->id}", ['update_id' => 1, 'message' => [
             'message_id' => 1, 'text' => '/start', 'from' => ['id' => 9], 'chat' => ['id' => 9, 'type' => 'private'],

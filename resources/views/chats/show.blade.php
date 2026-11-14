@@ -24,12 +24,31 @@
                                 <div class="fst-italic small"><i class="bi bi-hand-index"></i> pressed button:</div>
                             @elseif($m->type === 'other')
                                 <div class="fst-italic small">[non-text message]</div>
+                            @elseif(in_array($m->type, ['copy', 'forward'], true))
+                                <div class="fst-italic small"><i class="bi bi-bookmark-star"></i> {{ $m->type === 'forward' ? 'Forwarded' : 'Copied' }} saved message: {{ $m->payload['saved_label'] ?? '' }}</div>
                             @endif
-                            @if($m->message !== null && $m->message !== ''){{ $m->message }}@endif
+                            @if($m->message !== null && $m->message !== '')<div class="msg-text">{{ $m->message }}</div>@endif
                             @foreach($m->payload['buttons'] ?? [] as $b)
                                 <div class="small border rounded px-2 mt-1">{{ $b['text'] }}</div>
                             @endforeach
-                            <div class="small opacity-75 text-end mt-1">{{ $m->created_at->format('Y-m-d H:i') }}</div>
+                            <div class="small opacity-75 d-flex justify-content-between gap-3 mt-1">
+                                <span>
+                                    @if($m->telegram_message_id)msg #{{ $m->telegram_message_id }}@endif
+                                    @if($m->direction === 'in' && $m->telegram_message_id && $m->type !== 'callback')
+                                        @if(isset($savedKeys[$m->chat_id.':'.$m->telegram_message_id]))
+                                            · <span class="text-success"><i class="bi bi-bookmark-check"></i> saved</span>
+                                        @else
+                                            · <form method="POST" action="{{ route('bots.saved-messages.store', $bot) }}" class="d-inline save-message-form">
+                                                @csrf
+                                                <input type="hidden" name="telegram_message_id" value="{{ $m->id }}">
+                                                <input type="hidden" name="label" value="">
+                                                <button class="btn btn-link btn-sm p-0 align-baseline" title="Save to reuse as a reply or broadcast"><i class="bi bi-bookmark-plus"></i> Save</button>
+                                            </form>
+                                        @endif
+                                    @endif
+                                </span>
+                                <span>{{ $m->created_at->format('Y-m-d H:i') }}</span>
+                            </div>
                         </div>
                     </div>
                 @empty
@@ -37,17 +56,21 @@
                 @endforelse
             </div>
             <div class="card-footer bg-white">
-                <form method="POST" action="{{ route('chats.send', [$bot, $tgUser]) }}" enctype="multipart/form-data">
+                <form method="POST" action="{{ route('chats.send', [$bot, $tgUser]) }}" enctype="multipart/form-data" data-loading="Sending message…">
                     @csrf
-                    <textarea name="message" rows="3" class="form-control mb-2" placeholder="Type a message to send via &#64;{{ $bot->username }}" maxlength="4096">{{ old('message') }}</textarea>
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-8"><input type="file" name="image" accept="image/*" class="form-control"></div>
-                        <div class="col-md-4 d-grid"><button class="btn btn-primary"><i class="bi bi-send"></i> Send</button></div>
+                    <div class="compose-only">
+                        <textarea name="message" rows="3" class="form-control mb-2" placeholder="Type a message to send via &#64;{{ $bot->username }}" maxlength="4096">{{ old('message') }}</textarea>
+                        <input type="file" name="image" accept="image/*" class="form-control mb-2">
                     </div>
-                    <details>
+                    <details class="mb-2" @if($savedMessages->isNotEmpty() && old('saved_message_id')) open @endif>
+                        <summary class="small text-muted">Reply with a saved message (copy / forward)</summary>
+                        <div class="mt-2">@include('partials.saved-message-picker', ['savedMessages' => $savedMessages, 'bot' => $bot])</div>
+                    </details>
+                    <details class="mb-2">
                         <summary class="small text-muted">Add buttons</summary>
                         <div class="mt-2">@include('partials.buttons', ['buttons' => []])</div>
                     </details>
+                    <button class="btn btn-primary"><i class="bi bi-send"></i> Send</button>
                 </form>
             </div>
         </div>
@@ -72,5 +95,18 @@
 @endsection
 
 @push('scripts')
-<script>const box = document.getElementById('chat-box'); box.scrollTop = box.scrollHeight;</script>
+<script>
+const box = document.getElementById('chat-box');
+box.scrollTop = box.scrollHeight;
+document.querySelectorAll('.save-message-form').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+        const label = prompt('Name for this saved message (e.g. "Promo Nov"):', '');
+        if (label === null) {
+            event.preventDefault();
+            return;
+        }
+        form.querySelector('[name=label]').value = label;
+    });
+});
+</script>
 @endpush

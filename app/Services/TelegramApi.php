@@ -36,10 +36,13 @@ class TelegramApi
     protected function parse(?array $json, int $status): mixed
     {
         if (! is_array($json) || empty($json['ok'])) {
-            throw new TelegramException(
+            $exception = new TelegramException(
                 $json['description'] ?? 'Telegram API request failed (HTTP '.$status.')',
                 (int) ($json['error_code'] ?? $status)
             );
+            $exception->retryAfter = isset($json['parameters']['retry_after']) ? (int) $json['parameters']['retry_after'] : null;
+
+            throw $exception;
         }
 
         return $json['result'] ?? null;
@@ -92,14 +95,10 @@ class TelegramApi
     }
 
     /**
-     * Upload a local image file and send it as a photo.
+     * Send a photo: either upload a local image file, or reuse a Telegram file_id from an earlier upload.
      */
-    public function sendPhoto(int|string $chatId, string $localPath, ?string $caption = null, ?array $replyMarkup = null): array
+    public function sendPhoto(int|string $chatId, string $localPath, ?string $caption = null, ?array $replyMarkup = null, ?string $fileId = null): array
     {
-        if (! is_file($localPath)) {
-            throw new RuntimeException('Image file not found: '.$localPath);
-        }
-
         $params = ['chat_id' => (string) $chatId];
         if ($caption !== null && $caption !== '') {
             $params['caption'] = $caption;
@@ -108,11 +107,40 @@ class TelegramApi
             $params['reply_markup'] = json_encode($replyMarkup);
         }
 
+        if ($fileId) {
+            return $this->call('sendPhoto', $params + ['photo' => $fileId]);
+        }
+
+        if (! is_file($localPath)) {
+            throw new RuntimeException('Image file not found: '.$localPath);
+        }
+
         $response = $this->http()
             ->attach('photo', file_get_contents($localPath), basename($localPath))
             ->post($this->url('sendPhoto'), $params);
 
         return $this->parse($response->json(), $response->status());
+    }
+
+    /**
+     * Re-send an existing message as if the bot wrote it (keeps formatting; no "Forwarded from" header).
+     */
+    public function copyMessage(int|string $chatId, int|string $fromChatId, int $messageId, ?array $replyMarkup = null): array
+    {
+        $params = ['chat_id' => $chatId, 'from_chat_id' => $fromChatId, 'message_id' => $messageId];
+        if ($replyMarkup) {
+            $params['reply_markup'] = json_encode($replyMarkup);
+        }
+
+        return $this->call('copyMessage', $params);
+    }
+
+    /**
+     * Forward an existing message exactly as it is, with the "Forwarded from" header.
+     */
+    public function forwardMessage(int|string $chatId, int|string $fromChatId, int $messageId): array
+    {
+        return $this->call('forwardMessage', ['chat_id' => $chatId, 'from_chat_id' => $fromChatId, 'message_id' => $messageId]);
     }
 
     public function answerCallbackQuery(string $callbackQueryId): mixed

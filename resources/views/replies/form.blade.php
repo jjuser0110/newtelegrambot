@@ -8,7 +8,7 @@
         <h3 class="mb-3">{{ $reply->exists ? 'Edit reply' : 'Add reply' }}</h3>
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <form method="POST" enctype="multipart/form-data"
+                <form method="POST" enctype="multipart/form-data" data-loading="Saving reply…"
                       action="{{ $reply->exists ? route('bots.replies.update', [$bot, $reply]) : route('bots.replies.store', $bot) }}">
                     @csrf
                     @if($reply->exists) @method('PUT') @endif
@@ -27,12 +27,16 @@
                     </div>
 
                     <div class="mb-3">
+                        @include('partials.saved-message-picker', ['savedMessages' => $savedMessages, 'bot' => $bot, 'selectedId' => $reply->saved_message_id, 'selectedMode' => $reply->send_mode])
+                    </div>
+
+                    <div class="mb-3 compose-only">
                         <label class="form-label">Message</label>
                         <textarea name="message" rows="6" class="form-control" maxlength="4096">{{ old('message', $reply->message) }}</textarea>
                         <div class="form-text">With an image, the first 1024 characters are used as the caption.</div>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-3 compose-only">
                         <label class="form-label">Image</label>
                         @if($reply->image_path)
                             <input type="hidden" name="keep_image" value="1">

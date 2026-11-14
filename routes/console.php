@@ -1,8 +1,9 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+/*
+ * Run "php artisan schedule:work" (local) or a cron "* * * * * php artisan schedule:run" (server),
+ * plus "php artisan queue:work" so broadcasts are sent.
+ */
+Schedule::command('broadcasts:dispatch-due')->everyMinute()->withoutOverlapping(5);

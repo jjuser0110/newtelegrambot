@@ -17,8 +17,9 @@
         </div>
         <div class="d-flex flex-wrap gap-2">
             <a href="{{ route('chats.index', $bot) }}" class="btn btn-primary"><i class="bi bi-chat-dots"></i> Chats</a>
-            <a href="{{ route('chats.broadcast', $bot) }}" class="btn btn-outline-primary"><i class="bi bi-megaphone"></i> Broadcast</a>
-            <form method="POST" action="{{ route('bots.webhook', $bot) }}">@csrf
+            <a href="{{ route('broadcasts.index', $bot) }}" class="btn btn-outline-primary"><i class="bi bi-megaphone"></i> Broadcasts</a>
+            <a href="{{ route('bots.saved-messages.index', $bot) }}" class="btn btn-outline-primary"><i class="bi bi-bookmark-star"></i> Saved messages</a>
+            <form method="POST" action="{{ route('bots.webhook', $bot) }}" data-loading="Registering the webhook with Telegram…">@csrf
                 <button class="btn btn-outline-secondary" title="{{ $bot->webhookUrl() }}"><i class="bi bi-arrow-repeat"></i> Set webhook</button></form>
             <form method="POST" action="{{ route('bots.toggle', $bot) }}">@csrf
                 <button class="btn btn-outline-secondary">{{ $bot->is_active ? 'Pause' : 'Enable' }}</button></form>
@@ -49,7 +50,12 @@
                     <div class="mb-2"><span class="badge text-bg-dark">{{ $reply->trigger }}</span>
                         <span class="badge text-bg-light border">#{{ $reply->sort_order }}</span>
                         @unless($reply->is_active)<span class="badge text-bg-secondary">inactive</span>@endunless</div>
-                    <div style="white-space:pre-wrap" class="small">{{ \Illuminate\Support\Str::limit($reply->message, 300) }}</div>
+                    @if($reply->savedMessage)
+                        <div class="small text-primary mb-1"><i class="bi bi-bookmark-star"></i> {{ ucfirst($reply->send_mode) }} saved message: {{ $reply->savedMessage->label }}</div>
+                        <div style="white-space:pre-wrap" class="small">{{ \Illuminate\Support\Str::limit($reply->savedMessage->preview, 300) }}</div>
+                    @else
+                        <div style="white-space:pre-wrap" class="small">{{ \Illuminate\Support\Str::limit($reply->message, 300) }}</div>
+                    @endif
                     @foreach($reply->buttons ?? [] as $b)
                         <div class="btn btn-sm btn-outline-primary w-100 mt-1 disabled">
                             <i class="bi {{ $b['type'] === 'url' ? 'bi-box-arrow-up-right' : 'bi-reply' }}"></i> {{ $b['text'] }}

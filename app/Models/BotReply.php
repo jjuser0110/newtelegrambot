@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['bot_id', 'trigger', 'message', 'image_path', 'buttons', 'sort_order', 'is_active'])]
+#[Fillable(['bot_id', 'trigger', 'message', 'image_path', 'buttons', 'saved_message_id', 'send_mode', 'sort_order', 'is_active'])]
 class BotReply extends Model
 {
     protected function casts(): array
@@ -20,5 +20,10 @@ class BotReply extends Model
     public function bot(): BelongsTo
     {
         return $this->belongsTo(Bot::class);
+    }
+
+    public function savedMessage(): BelongsTo
+    {
+        return $this->belongsTo(SavedMessage::class);
     }
 }

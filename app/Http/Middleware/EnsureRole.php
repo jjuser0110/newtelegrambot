@@ -9,7 +9,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureRole
 {
-    public function handle(Request $request, Closure $next, string $role): Response
+    /**
+     * Usage: role:superadmin  or  role:company,superadmin
+     */
+    public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         $user = $request->user();
 
@@ -19,7 +22,7 @@ class EnsureRole
             return redirect()->route('login')->withErrors(['username' => 'Your account is disabled.']);
         }
 
-        abort_unless($user->role === $role, 403);
+        abort_unless(in_array($user->role, $roles, true), 403);
 
         return $next($request);
     }

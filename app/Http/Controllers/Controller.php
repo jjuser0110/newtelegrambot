@@ -6,10 +6,14 @@ use App\Models\Bot;
 
 abstract class Controller
 {
-    /** Make sure the bot belongs to the logged in company. */
+    /**
+     * Make sure the bot belongs to the logged in company. The superadmin can access every bot.
+     */
     protected function ownBot(Bot $bot): Bot
     {
-        abort_unless($bot->user_id === auth()->id(), 404);
+        $user = auth()->user();
+
+        abort_unless($user->isSuperadmin() || $bot->user_id === $user->id, 404);
 
         return $bot;
     }

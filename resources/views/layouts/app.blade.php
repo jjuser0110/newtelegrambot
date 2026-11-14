@@ -9,7 +9,8 @@
     <style>
         body { background: #f4f6f9; }
         .chat-box { max-height: 60vh; overflow-y: auto; background: #e9eef3; }
-        .bubble { max-width: 75%; white-space: pre-wrap; word-break: break-word; }
+        .bubble { max-width: 75%; min-width: 180px; word-break: break-word; }
+        .msg-text { white-space: pre-wrap; }
         .bubble img { max-width: 240px; border-radius: .4rem; }
     </style>
     @stack('head')
@@ -24,6 +25,7 @@
                 <ul class="navbar-nav me-auto">
                     @if(auth()->user()->isSuperadmin())
                         <li class="nav-item"><a class="nav-link" href="{{ route('admin.companies.index') }}">Companies</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{{ route('bots.index') }}">All Bots</a></li>
                     @else
                         <li class="nav-item"><a class="nav-link" href="{{ route('bots.index') }}">My Bots</a></li>
                     @endif
@@ -55,7 +57,32 @@
     @yield('content')
 </main>
 
+{{-- Loading overlay: add data-loading="message" to any form to show it on submit. --}}
+<div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 align-items-center justify-content-center"
+     style="display: none; background: rgba(0,0,0,.45); z-index: 2000;">
+    <div class="bg-white rounded-3 shadow p-4 text-center" style="max-width: 360px;">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <div id="loading-text" class="fw-semibold">Please wait…</div>
+        <div class="small text-muted mt-2">Please don't close or refresh this page.</div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!form.matches('form[data-loading]') || event.defaultPrevented) {
+        return;
+    }
+    document.getElementById('loading-text').textContent = form.dataset.loading || 'Please wait…';
+    document.getElementById('loading-overlay').style.display = 'flex';
+    form.querySelectorAll('button, input[type=submit]').forEach((button) => {
+        button.disabled = true;
+    });
+});
+// Hide the overlay if the user comes back with the browser Back button.
+window.addEventListener('pageshow', () => document.getElementById('loading-overlay').style.display = 'none');
+</script>
 @stack('scripts')
 </body>
 </html>

@@ -5,7 +5,7 @@
 <nav class="mb-2"><a href="{{ route('bots.show', $bot) }}">&larr; &#64;{{ $bot->username }}</a></nav>
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h3 class="mb-0">Telegram users of &#64;{{ $bot->username }}</h3>
-    <a href="{{ route('chats.broadcast', $bot) }}" class="btn btn-outline-primary"><i class="bi bi-megaphone"></i> Broadcast to all</a>
+    <a href="{{ route('broadcasts.index', $bot) }}" class="btn btn-outline-primary"><i class="bi bi-megaphone"></i> Broadcasts</a>
 </div>
 
 <form class="mb-3" method="GET">

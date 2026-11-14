@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bot;
+use App\Models\User;
 use App\Services\TelegramApi;
 use App\Services\TelegramException;
 use Illuminate\Http\Request;
@@ -14,6 +15,18 @@ class BotController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
+
+        if ($user->isSuperadmin()) {
+            $companies = User::where('role', User::ROLE_COMPANY)->orderBy('name')->get(['id', 'name', 'username']);
+            $bots = Bot::with('user:id,name,username')
+                ->withCount(['replies', 'telegramUsers'])
+                ->when($request->company, fn ($query, $companyId) => $query->where('user_id', $companyId))
+                ->latest()
+                ->get();
+
+            return view('bots.index', compact('bots', 'user', 'companies'));
+        }
+
         $bots = $user->bots()->withCount(['replies', 'telegramUsers'])->latest()->get();
 
         return view('bots.index', compact('bots', 'user'));
@@ -68,7 +81,7 @@ class BotController extends Controller
     {
         $this->ownBot($bot);
         $bot->loadCount(['telegramUsers', 'messages']);
-        $replies = $bot->replies()->get();
+        $replies = $bot->replies()->with('savedMessage')->get();
 
         return view('bots.show', compact('bot', 'replies'));
     }

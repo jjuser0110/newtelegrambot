@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Bot;
 use App\Models\TelegramUser;
 use App\Services\MessageSender;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 use Throwable;
 
 class ChatController extends Controller
 {
-    public function index(Request $request, Bot $bot)
+    public function index(Request $request, Bot $bot): View
     {
         $this->ownBot($bot);
 
@@ -28,71 +31,48 @@ class ChatController extends Controller
         return view('chats.index', compact('bot', 'users'));
     }
 
-    public function show(Bot $bot, TelegramUser $telegramUser)
+    public function show(Bot $bot, TelegramUser $telegramUser): View
     {
         $this->ownBot($bot);
         $messages = $telegramUser->messages()->latest()->limit(200)->get()->reverse();
+        $savedMessages = $bot->savedMessages()->latest()->get();
+        $savedKeys = $savedMessages->map(fn ($saved) => $saved->from_chat_id.':'.$saved->message_id)->flip();
 
-        return view('chats.show', ['bot' => $bot, 'tgUser' => $telegramUser, 'messages' => $messages]);
+        return view('chats.show', [
+            'bot' => $bot,
+            'tgUser' => $telegramUser,
+            'messages' => $messages,
+            'savedMessages' => $savedMessages,
+            'savedKeys' => $savedKeys,
+        ]);
     }
 
-    public function send(Request $request, Bot $bot, TelegramUser $telegramUser, MessageSender $sender)
+    public function send(Request $request, Bot $bot, TelegramUser $telegramUser, MessageSender $sender): RedirectResponse
     {
         $this->ownBot($bot);
-        [$text, $image, $buttons] = $this->validatedMessage($request);
+
+        $request->validate([
+            'saved_message_id' => ['nullable', 'integer', Rule::exists('saved_messages', 'id')->where('bot_id', $bot->id)],
+            'send_mode' => ['nullable', 'in:copy,forward'],
+            'message' => ['nullable', 'string', 'max:4096', 'required_without_all:image,saved_message_id'],
+            'image' => ['nullable', 'image', 'max:5120'],
+            'buttons' => ['nullable', 'array', 'max:20'],
+        ], ['message.required_without_all' => 'Please enter a message, choose an image or pick a saved message.']);
+
+        $buttons = ButtonInput::clean($request->input('buttons', []));
 
         try {
-            $sender->send($bot, $telegramUser, $text, $image, $buttons);
+            if ($request->filled('saved_message_id')) {
+                $saved = $bot->savedMessages()->findOrFail($request->saved_message_id);
+                $sender->sendSaved($bot, $telegramUser, $saved, $request->input('send_mode', 'copy'), $buttons);
+            } else {
+                $image = $request->hasFile('image') ? $request->file('image')->store('sent', 'public') : null;
+                $sender->send($bot, $telegramUser, $request->message, $image, $buttons);
+            }
         } catch (Throwable $e) {
             return back()->withInput()->withErrors(['message' => 'Send failed: '.$e->getMessage()]);
         }
 
         return back()->with('success', 'Message sent.');
-    }
-
-    public function broadcastForm(Bot $bot)
-    {
-        $this->ownBot($bot);
-        $count = $bot->telegramUsers()->where('is_blocked', false)->count();
-
-        return view('chats.broadcast', compact('bot', 'count'));
-    }
-
-    public function broadcast(Request $request, Bot $bot, MessageSender $sender)
-    {
-        $this->ownBot($bot);
-        [$text, $image, $buttons] = $this->validatedMessage($request);
-
-        @set_time_limit(0);
-        $sent = $failed = 0;
-
-        $bot->telegramUsers()->where('is_blocked', false)->chunkById(100, function ($users) use ($sender, $bot, $text, $image, $buttons, &$sent, &$failed) {
-            foreach ($users as $user) {
-                try {
-                    $sender->send($bot, $user, $text, $image, $buttons);
-                    $sent++;
-                } catch (Throwable) {
-                    $failed++;
-                }
-                usleep(40_000); // stay under Telegram's ~30 msg/sec limit
-            }
-        });
-
-        return redirect()->route('chats.index', $bot)->with('success', "Broadcast finished: $sent sent, $failed failed.");
-    }
-
-    /** @return array{0:?string,1:?string,2:array} */
-    private function validatedMessage(Request $request): array
-    {
-        $request->validate([
-            'message' => ['nullable', 'string', 'max:4096', 'required_without:image'],
-            'image' => ['nullable', 'image', 'max:5120'],
-            'buttons' => ['nullable', 'array', 'max:20'],
-        ], ['message.required_without' => 'Please enter a message or choose an image.']);
-
-        $buttons = ButtonInput::clean($request->input('buttons', []));
-        $image = $request->hasFile('image') ? $request->file('image')->store('sent', 'public') : null;
-
-        return [$request->message, $image, $buttons];
     }
 }

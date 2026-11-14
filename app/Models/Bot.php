@@ -42,6 +42,16 @@ class Bot extends Model
         return $this->hasMany(TelegramMessage::class);
     }
 
+    public function savedMessages(): HasMany
+    {
+        return $this->hasMany(SavedMessage::class);
+    }
+
+    public function broadcasts(): HasMany
+    {
+        return $this->hasMany(Broadcast::class);
+    }
+
     public function api(): TelegramApi
     {
         return new TelegramApi($this->token);

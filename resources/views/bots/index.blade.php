@@ -1,18 +1,35 @@
 @extends('layouts.app')
-@section('title', 'My Bots')
+@section('title', $user->isSuperadmin() ? 'All Bots' : 'My Bots')
 
 @section('content')
+@if($user->isSuperadmin())
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h3 class="mb-0">All Bots <span class="text-muted fs-6">({{ $bots->count() }})</span></h3>
+    <form method="GET" class="d-flex gap-2">
+        <select name="company" class="form-select" onchange="this.form.submit()">
+            <option value="">All companies</option>
+            @foreach($companies as $company)
+                <option value="{{ $company->id }}" @selected(request('company') == $company->id)>{{ $company->name }} ({{ $company->username }})</option>
+            @endforeach
+        </select>
+    </form>
+</div>
+@else
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">My Bots</h3>
     <span class="badge text-bg-light border fs-6">{{ $bots->count() }} / {{ $user->bot_limit }} bots used</span>
 </div>
+@endif
 
-@if($user->canAddBot())
+@if($user->isSuperadmin())
+    {{-- superadmin does not connect bots --}}
+@elseif($user->canAddBot())
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <h5 class="card-title"><i class="bi bi-plug"></i> Connect a Telegram bot</h5>
             <p class="text-muted small mb-3">Create a bot with <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, copy its token and paste it here.</p>
-            <form method="POST" action="{{ route('bots.store') }}" class="row g-2">
+            <form method="POST" action="{{ route('bots.store') }}" class="row g-2"
+                  data-loading="Connecting to Telegram… checking the token and setting up the webhook. This can take up to 30 seconds.">
                 @csrf
                 <div class="col-md-9">
                     <input name="token" value="{{ old('token') }}" class="form-control" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" required autocomplete="off">
@@ -32,6 +49,9 @@
         <div class="col-md-6 col-lg-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
+                    @if($user->isSuperadmin())
+                        <div class="small text-muted mb-1"><i class="bi bi-building"></i> {{ $bot->user->name }} ({{ $bot->user->username }})</div>
+                    @endif
                     <h5 class="card-title mb-1">{{ $bot->first_name }}</h5>
                     <a href="https://t.me/{{ $bot->username }}" target="_blank" rel="noopener" class="text-decoration-none">&#64;{{ $bot->username }}</a>
                     <div class="mt-2">
@@ -43,6 +63,7 @@
                 <div class="card-footer bg-white border-0 d-flex gap-2">
                     <a href="{{ route('bots.show', $bot) }}" class="btn btn-sm btn-primary">Replies</a>
                     <a href="{{ route('chats.index', $bot) }}" class="btn btn-sm btn-outline-primary">Chats</a>
+                    <a href="{{ route('broadcasts.index', $bot) }}" class="btn btn-sm btn-outline-primary">Broadcasts</a>
                 </div>
             </div>
         </div>

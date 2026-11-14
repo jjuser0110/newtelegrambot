@@ -25,13 +25,14 @@
                 <tr>
                     <td>{{ $c->name }}</td>
                     <td><code>{{ $c->username }}</code></td>
-                    <td>{{ $c->bots_count }} / {{ $c->bot_limit }}</td>
+                    <td><a href="{{ route('bots.index', ['company' => $c->id]) }}">{{ $c->bots_count }} / {{ $c->bot_limit }}</a></td>
                     <td>
                         @if($c->is_active)<span class="badge text-bg-success">Active</span>
                         @else<span class="badge text-bg-secondary">Disabled</span>@endif
                     </td>
                     <td>{{ $c->created_at->format('Y-m-d') }}</td>
                     <td class="text-end">
+                        <a href="{{ route('bots.index', ['company' => $c->id]) }}" class="btn btn-sm btn-outline-secondary">View bots</a>
                         <a href="{{ route('admin.companies.edit', $c) }}" class="btn btn-sm btn-outline-primary">Edit</a>
                         <form method="POST" action="{{ route('admin.companies.destroy', $c) }}" class="d-inline"
                               onsubmit="return confirm('Delete {{ $c->name }} and all its bots, chats and messages?')">

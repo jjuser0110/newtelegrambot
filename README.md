@@ -45,6 +45,25 @@ php artisan telegram:poll
 
 (or expose the site with a tunnel such as ngrok, set `APP_URL` to the https tunnel URL, and click **Set webhook**).
 
+## Broadcasts need two background processes
+
+Broadcasts are sent by a queue worker (about 20 messages/second, in batches with an optional pause), and
+scheduled broadcasts / next batches are started by the scheduler. Keep both running:
+
+```bash
+php artisan queue:work
+php artisan schedule:work
+```
+
+On a Linux server use Supervisor for `queue:work` and a cron entry `* * * * * php /path/artisan schedule:run`.
+Set `APP_TIMEZONE` in `.env` (e.g. `Asia/Kuala_Lumpur`) so scheduled times match your clock.
+
+## Saved messages (copy / forward)
+
+Send a Premium-decorated message to your bot, open that chat in the panel and click **Save** on it (or add it by
+`chat_id` + `message_id`). It can then be used as an auto-reply, a chat reply or a broadcast:
+**Copy** looks like the bot wrote it (buttons allowed), **Forward** keeps the "Forwarded from" header exactly as the original.
+
 ## Tests
 
 Tests use the MySQL database `telegram_bot_reply_test` (see `phpunit.xml`).

@@ -122,7 +122,7 @@ class UpdateHandler
         }
 
         $key = $this->normalize($text, $bot->username);
-        $replies = $bot->replies()->where('is_active', true)->get();
+        $replies = $bot->replies()->with('savedMessage')->where('is_active', true)->get();
 
         $matched = $key === ''
             ? collect()
