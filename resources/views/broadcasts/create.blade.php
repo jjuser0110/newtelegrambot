@@ -48,20 +48,12 @@
 
                     <h6 class="border-top pt-3">Sending speed</h6>
                     <p class="small text-muted mb-2">
-                        Messages are sent in the background at about 20 per second (Telegram allows ~30/second per bot and
-                        temporarily blocks bots that send too fast). If Telegram asks the bot to slow down, it waits automatically.
-                        For big lists you can also send in batches with a pause in between.
+                        Messages are sent one by one in the background. Telegram allows about 30 messages per second per bot;
+                        slower is safer. If Telegram still says "too many requests", the bot waits and halves the speed automatically.
+                        For big lists you can also send in batches with a pause in between. You can change the speed or pause while it runs.
                     </p>
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-4">
-                            <label class="form-label">Batch size</label>
-                            <input type="number" name="batch_size" min="1" max="3000" value="{{ old('batch_size', 1000) }}" class="form-control" required>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Pause between batches (minutes)</label>
-                            <input type="number" name="batch_delay_minutes" min="0" max="1440" value="{{ old('batch_delay_minutes', 10) }}" class="form-control" required>
-                        </div>
-                        <div class="col-md-4 small text-muted d-flex align-items-end" id="estimate"></div>
+                    <div class="mb-4">
+                        @include('partials.broadcast-speed', ['speed' => 15, 'batchSize' => 1000, 'batchDelay' => 10, 'audience' => $audience])
                     </div>
 
                     <button class="btn btn-primary" @disabled($audience === 0)><i class="bi bi-megaphone"></i> Create broadcast</button>
@@ -72,22 +64,3 @@
 </div>
 @endsection
 
-@push('scripts')
-<script>
-(() => {
-    const audience = {{ $audience }};
-    const size = document.querySelector('[name=batch_size]');
-    const delay = document.querySelector('[name=batch_delay_minutes]');
-    const out = document.getElementById('estimate');
-    const update = () => {
-        const batchSize = Math.max(1, parseInt(size.value || '1', 10));
-        const batches = Math.max(1, Math.ceil(audience / batchSize));
-        const minutes = Math.ceil(audience / 20 / 60) + (batches - 1) * Math.max(0, parseInt(delay.value || '0', 10));
-        out.textContent = `${batches} batch(es) · about ${minutes} minute(s) in total`;
-    };
-    size.addEventListener('input', update);
-    delay.addEventListener('input', update);
-    update();
-})();
-</script>
-@endpush

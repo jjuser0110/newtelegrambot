@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'bot_id', 'created_by', 'title', 'message', 'image_path', 'photo_file_id', 'buttons', 'saved_message_id', 'send_mode',
     'status', 'scheduled_at', 'next_batch_at', 'started_at', 'finished_at', 'batch_size', 'batch_delay_minutes',
-    'total', 'sent_count', 'failed_count',
+    'messages_per_second', 'total', 'sent_count', 'failed_count',
 ])]
 class Broadcast extends Model
 {
@@ -22,6 +22,25 @@ class Broadcast extends Model
     public const STATUS_SCHEDULED = 'scheduled';
 
     public const STATUS_RUNNING = 'running';
+
+    public const STATUS_PAUSED = 'paused';
+
+    /**
+     * Telegram allows about 30 messages/second per bot; stay safely below it.
+     */
+    public const MAX_MESSAGES_PER_SECOND = 25;
+
+    /**
+     * Speed presets shown in the forms (messages per second => label).
+     *
+     * @var array<int, string>
+     */
+    public const SPEED_PRESETS = [
+        1 => 'Very slow – 1 / second (~3,600 per hour)',
+        5 => 'Slow – 5 / second (~18,000 per hour)',
+        15 => 'Normal – 15 / second (recommended)',
+        25 => 'Fast – 25 / second (maximum)',
+    ];
 
     public const STATUS_COMPLETED = 'completed';
 
@@ -61,6 +80,32 @@ class Broadcast extends Model
     public function isFinished(): bool
     {
         return in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_CANCELLED], true);
+    }
+
+    /**
+     * Pause between two messages for the chosen speed.
+     */
+    public function sendIntervalMicroseconds(): int
+    {
+        $perSecond = max(1, min(self::MAX_MESSAGES_PER_SECOND, (int) $this->messages_per_second));
+
+        return intdiv(1_000_000, $perSecond);
+    }
+
+    /**
+     * Rough minutes left: sending time at the current speed plus the remaining pauses between batches.
+     */
+    public function estimatedMinutesRemaining(): int
+    {
+        $pending = max(0, $this->total - $this->sent_count - $this->failed_count);
+        if ($pending === 0) {
+            return 0;
+        }
+
+        $sendingSeconds = $pending * $this->sendIntervalMicroseconds() / 1_000_000;
+        $remainingPauses = max(0, (int) ceil($pending / max(1, $this->batch_size)) - 1) * $this->batch_delay_minutes;
+
+        return (int) ceil($sendingSeconds / 60) + $remainingPauses;
     }
 
     public function progressPercent(): int

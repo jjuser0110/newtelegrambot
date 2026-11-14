@@ -23,12 +23,12 @@ class SendBroadcastBatch implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
-    /**
-     * Pause between two messages (microseconds). 50ms = max ~20 messages/second, below Telegram's ~30/second.
-     */
-    public const SEND_INTERVAL_MICROSECONDS = 50_000;
-
     private const MAX_RATE_LIMIT_RETRIES = 5;
+
+    /**
+     * Re-read status and speed from the database every N messages, so Pause / Cancel / speed changes apply while sending.
+     */
+    private const CONTROL_CHECK_EVERY = 10;
 
     public int $timeout = 1500;
 
@@ -47,7 +47,7 @@ class SendBroadcastBatch implements ShouldBeUnique, ShouldQueue
     {
         $broadcast = Broadcast::with(['bot', 'savedMessage'])->find($this->broadcast->id);
 
-        if (! $broadcast || $broadcast->isFinished()) {
+        if (! $broadcast || $broadcast->isFinished() || $broadcast->status === Broadcast::STATUS_PAUSED) {
             return;
         }
 
@@ -68,18 +68,21 @@ class SendBroadcastBatch implements ShouldBeUnique, ShouldQueue
             ->limit($broadcast->batch_size)
             ->get();
 
+        $nextSendAt = microtime(true);
+
         foreach ($recipients as $index => $recipient) {
-            if ($index % 20 === 0 && $this->wasCancelled($broadcast)) {
+            if ($index % self::CONTROL_CHECK_EVERY === 0 && ! $this->refreshControls($broadcast)) {
                 return;
             }
 
+            $this->waitUntil($nextSendAt);
             $this->sendTo($broadcast, $recipient, $sender);
-            usleep(self::SEND_INTERVAL_MICROSECONDS);
+            $nextSendAt = max($nextSendAt + $broadcast->sendIntervalMicroseconds() / 1_000_000, microtime(true));
         }
 
         $remaining = $broadcast->recipients()->where('status', 'pending')->count();
 
-        if ($this->wasCancelled($broadcast)) {
+        if (! $this->refreshControls($broadcast)) {
             return;
         }
 
@@ -157,7 +160,8 @@ class SendBroadcastBatch implements ShouldBeUnique, ShouldQueue
                 return;
             } catch (TelegramException $e) {
                 if ($e->retryAfter !== null && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
-                    // 429 Too Many Requests: wait as long as Telegram asks, then retry the same user.
+                    // 429 Too Many Requests: halve the speed, wait as long as Telegram asks, then retry the same user.
+                    $this->slowDown($broadcast);
                     sleep($e->retryAfter + 1);
 
                     continue;
@@ -179,8 +183,44 @@ class SendBroadcastBatch implements ShouldBeUnique, ShouldQueue
         $broadcast->increment('failed_count');
     }
 
-    private function wasCancelled(Broadcast $broadcast): bool
+    /**
+     * Telegram said we are too fast: halve the speed (minimum 1/second) and remember it for the rest of the broadcast.
+     */
+    private function slowDown(Broadcast $broadcast): void
     {
-        return Broadcast::whereKey($broadcast->id)->value('status') === Broadcast::STATUS_CANCELLED;
+        $slower = max(1, intdiv((int) $broadcast->messages_per_second, 2));
+
+        if ($slower !== (int) $broadcast->messages_per_second) {
+            $broadcast->update(['messages_per_second' => $slower]);
+            Log::info('Broadcast slowed down after Telegram rate limit', ['broadcast_id' => $broadcast->id, 'messages_per_second' => $slower]);
+        }
+    }
+
+    /**
+     * Pick up the latest status and speed. Returns false when the broadcast was paused or cancelled.
+     */
+    private function refreshControls(Broadcast $broadcast): bool
+    {
+        $latest = Broadcast::whereKey($broadcast->id)->first(['status', 'messages_per_second']);
+
+        if (! $latest || $latest->status !== Broadcast::STATUS_RUNNING) {
+            return false;
+        }
+
+        $broadcast->messages_per_second = $latest->messages_per_second;
+
+        return true;
+    }
+
+    /**
+     * Sleep until the given moment so messages go out evenly at the chosen speed, whatever the API latency.
+     */
+    private function waitUntil(float $moment): void
+    {
+        $wait = $moment - microtime(true);
+
+        if ($wait > 0) {
+            usleep((int) ($wait * 1_000_000));
+        }
     }
 }

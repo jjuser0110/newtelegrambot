@@ -2,7 +2,7 @@
 @section('title', 'Broadcast #'.$broadcast->id)
 
 @php
-    $statusColors = ['scheduled' => 'info', 'running' => 'primary', 'completed' => 'success', 'cancelled' => 'secondary'];
+    $statusColors = ['scheduled' => 'info', 'running' => 'primary', 'paused' => 'warning', 'completed' => 'success', 'cancelled' => 'secondary'];
 @endphp
 
 @section('content')
@@ -14,6 +14,13 @@
         @if($broadcast->failed_count > 0 && in_array($broadcast->status, ['running', 'completed'], true))
             <form method="POST" action="{{ route('broadcasts.retry', [$bot, $broadcast]) }}" onsubmit="return confirm('Send again to all failed recipients?')">@csrf
                 <button class="btn btn-outline-warning"><i class="bi bi-arrow-clockwise"></i> Retry failed</button></form>
+        @endif
+        @if($broadcast->status === 'running')
+            <form method="POST" action="{{ route('broadcasts.pause', [$bot, $broadcast]) }}">@csrf
+                <button class="btn btn-outline-warning"><i class="bi bi-pause-circle"></i> Pause</button></form>
+        @elseif($broadcast->status === 'paused')
+            <form method="POST" action="{{ route('broadcasts.resume', [$bot, $broadcast]) }}">@csrf
+                <button class="btn btn-success"><i class="bi bi-play-circle"></i> Resume</button></form>
         @endif
         @unless($broadcast->isFinished())
             <form method="POST" action="{{ route('broadcasts.cancel', [$bot, $broadcast]) }}" onsubmit="return confirm('Stop this broadcast? Remaining users will not receive it.')">@csrf
@@ -43,8 +50,16 @@
                     <div class="col"><div class="fs-4 text-danger" id="failed">{{ $broadcast->failed_count }}</div><div class="small text-muted">Failed</div></div>
                     <div class="col"><div class="fs-4 text-secondary" id="pending">{{ max(0, $broadcast->total - $broadcast->sent_count - $broadcast->failed_count) }}</div><div class="small text-muted">Waiting</div></div>
                 </div>
-                <div class="small text-muted mt-3" id="note">
-                    @if($broadcast->status === 'scheduled')
+                <div class="small mt-3">
+                    <i class="bi bi-speedometer2"></i> Speed: <b id="speed">{{ $broadcast->messages_per_second }}</b> message(s)/second
+                    @unless($broadcast->isFinished())
+                        · about <b id="minutes-left">{{ $broadcast->estimatedMinutesRemaining() }}</b> minute(s) left
+                    @endunless
+                </div>
+                <div class="small text-muted mt-1" id="note">
+                    @if($broadcast->status === 'paused')
+                        Paused — press Resume to continue sending.
+                    @elseif($broadcast->status === 'scheduled')
                         Will start at {{ $broadcast->scheduled_at?->format('Y-m-d H:i') }} ({{ config('app.timezone') }}).
                     @elseif($broadcast->status === 'running' && $broadcast->next_batch_at?->isFuture())
                         Pausing between batches — next batch at {{ $broadcast->next_batch_at->format('Y-m-d H:i') }}.
@@ -73,6 +88,25 @@
             </div>
         </div>
     </div>
+    @unless($broadcast->isFinished())
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="mb-3"><i class="bi bi-sliders"></i> Control speed <span class="text-muted small fw-normal">(takes effect within a few messages)</span></h6>
+                    <form method="POST" action="{{ route('broadcasts.speed', [$bot, $broadcast]) }}">
+                        @csrf @method('PATCH')
+                        @include('partials.broadcast-speed', [
+                            'speed' => $broadcast->messages_per_second,
+                            'batchSize' => $broadcast->batch_size,
+                            'batchDelay' => $broadcast->batch_delay_minutes,
+                            'audience' => max(0, $broadcast->total - $broadcast->sent_count - $broadcast->failed_count),
+                        ])
+                        <button class="btn btn-primary mt-3"><i class="bi bi-check-lg"></i> Apply speed</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endunless
 </div>
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -141,9 +175,15 @@
             status.className = 'badge text-bg-' + (colors[data.status] || 'light');
             document.getElementById('bar-sent').style.width = (data.total ? data.sent * 100 / data.total : 0) + '%';
             document.getElementById('bar-failed').style.width = (data.total ? data.failed * 100 / data.total : 0) + '%';
-            set('note', data.next_batch_at && data.pending > 0
-                ? 'Pausing between batches — next batch at ' + data.next_batch_at + '.'
-                : (data.status === 'running' ? 'Sending…' : ''));
+            set('speed', data.messages_per_second);
+            if (document.getElementById('minutes-left')) {
+                set('minutes-left', data.minutes_left);
+            }
+            set('note', data.status === 'paused'
+                ? 'Paused — press Resume to continue sending.'
+                : (data.next_batch_at && data.pending > 0
+                    ? 'Pausing between batches — next batch at ' + data.next_batch_at + '.'
+                    : (data.status === 'running' ? 'Sending…' : '')));
 
             if (data.finished || data.status !== startedAs) {
                 // Reload once so the recipient table and buttons are up to date.

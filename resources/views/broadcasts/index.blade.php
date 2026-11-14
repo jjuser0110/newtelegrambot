@@ -2,7 +2,7 @@
 @section('title', 'Broadcasts')
 
 @php
-    $statusColors = ['scheduled' => 'info', 'running' => 'primary', 'completed' => 'success', 'cancelled' => 'secondary'];
+    $statusColors = ['scheduled' => 'info', 'running' => 'primary', 'paused' => 'warning', 'completed' => 'success', 'cancelled' => 'secondary'];
 @endphp
 
 @section('content')

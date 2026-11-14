@@ -229,19 +229,20 @@ class BroadcastAndSavedMessageTest extends TestCase
         $this->assertSame([201], $this->sentTo('sendMessage'));
     }
 
-    public function test_rate_limited_message_is_retried(): void
+    public function test_rate_limited_message_is_retried_and_speed_is_halved(): void
     {
         $this->fakeTelegram(rateLimitedOnce: [301]);
         $bot = $this->makeBot();
         $this->makeTelegramUsers($bot, [301]);
 
         $this->actingAs($bot->user)->post(route('broadcasts.store', $bot), [
-            'message' => 'Hi', 'batch_size' => 1000, 'batch_delay_minutes' => 0,
+            'message' => 'Hi', 'batch_size' => 1000, 'batch_delay_minutes' => 0, 'messages_per_second' => 20,
         ]);
 
         $broadcast = Broadcast::firstOrFail();
         $this->assertSame(1, $broadcast->sent_count);
         $this->assertSame(0, $broadcast->failed_count);
+        $this->assertSame(10, $broadcast->messages_per_second);
     }
 
     public function test_broadcast_image_is_uploaded_once_then_reused(): void
@@ -281,5 +282,71 @@ class BroadcastAndSavedMessageTest extends TestCase
 
         $this->assertSame(Broadcast::STATUS_CANCELLED, $broadcast->fresh()->status);
         $this->assertSame([501], $this->sentTo('sendMessage'));
+    }
+
+    public function test_speed_is_saved_on_create_and_can_be_changed_while_unfinished(): void
+    {
+        $this->fakeTelegram();
+        $bot = $this->makeBot();
+        $this->makeTelegramUsers($bot, [601]);
+
+        $this->actingAs($bot->user)->post(route('broadcasts.store', $bot), [
+            'message' => 'Later', 'scheduled_at' => now()->addDay()->format('Y-m-d\TH:i'),
+            'batch_size' => 500, 'batch_delay_minutes' => 5, 'messages_per_second' => 5,
+        ]);
+        $broadcast = Broadcast::firstOrFail();
+        $this->assertSame(5, $broadcast->messages_per_second);
+
+        $this->actingAs($bot->user)->patch(route('broadcasts.speed', [$bot, $broadcast]), [
+            'messages_per_second' => 2, 'batch_size' => 100, 'batch_delay_minutes' => 30,
+        ])->assertSessionHas('success');
+
+        $broadcast->refresh();
+        $this->assertSame([2, 100, 30], [$broadcast->messages_per_second, $broadcast->batch_size, $broadcast->batch_delay_minutes]);
+
+        $this->actingAs($bot->user)->patch(route('broadcasts.speed', [$bot, $broadcast]), [
+            'messages_per_second' => 50, 'batch_size' => 100, 'batch_delay_minutes' => 30,
+        ])->assertSessionHasErrors('messages_per_second');
+    }
+
+    public function test_finished_broadcast_speed_cannot_be_changed(): void
+    {
+        $bot = $this->makeBot();
+        $broadcast = Broadcast::factory()->for($bot)->create(['status' => Broadcast::STATUS_COMPLETED, 'messages_per_second' => 15]);
+
+        $this->actingAs($bot->user)->patch(route('broadcasts.speed', [$bot, $broadcast]), [
+            'messages_per_second' => 2, 'batch_size' => 100, 'batch_delay_minutes' => 0,
+        ])->assertSessionHas('warning');
+
+        $this->assertSame(15, $broadcast->fresh()->messages_per_second);
+    }
+
+    public function test_paused_broadcast_stops_until_resumed(): void
+    {
+        $this->fakeTelegram();
+        $bot = $this->makeBot();
+        $this->makeTelegramUsers($bot, [701, 702, 703]);
+
+        $this->actingAs($bot->user)->post(route('broadcasts.store', $bot), [
+            'message' => 'Hi', 'batch_size' => 1, 'batch_delay_minutes' => 0, 'messages_per_second' => 25,
+        ]);
+        $broadcast = Broadcast::firstOrFail();
+        $this->assertSame([701], $this->sentTo('sendMessage'));
+
+        $this->actingAs($bot->user)->post(route('broadcasts.pause', [$bot, $broadcast]))->assertSessionHas('success');
+        $this->travel(5)->minutes();
+        $this->artisan('broadcasts:dispatch-due');
+
+        $this->assertSame(Broadcast::STATUS_PAUSED, $broadcast->fresh()->status);
+        $this->assertSame([701], $this->sentTo('sendMessage'));
+
+        $this->actingAs($bot->user)->post(route('broadcasts.resume', [$bot, $broadcast]))->assertSessionHas('success');
+        $this->assertSame([701, 702], $this->sentTo('sendMessage'));
+
+        $this->travel(1)->minutes();
+        $this->artisan('broadcasts:dispatch-due');
+
+        $this->assertSame([701, 702, 703], $this->sentTo('sendMessage'));
+        $this->assertSame(Broadcast::STATUS_COMPLETED, $broadcast->fresh()->status);
     }
 }

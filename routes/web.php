@@ -55,6 +55,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/bots/{bot}/broadcasts/{broadcast}', [BroadcastController::class, 'show'])->name('broadcasts.show');
             Route::get('/bots/{bot}/broadcasts/{broadcast}/progress', [BroadcastController::class, 'progress'])->name('broadcasts.progress');
             Route::post('/bots/{bot}/broadcasts/{broadcast}/cancel', [BroadcastController::class, 'cancel'])->name('broadcasts.cancel');
+            Route::patch('/bots/{bot}/broadcasts/{broadcast}/speed', [BroadcastController::class, 'updateSpeed'])->name('broadcasts.speed');
+            Route::post('/bots/{bot}/broadcasts/{broadcast}/pause', [BroadcastController::class, 'pause'])->name('broadcasts.pause');
+            Route::post('/bots/{bot}/broadcasts/{broadcast}/resume', [BroadcastController::class, 'resume'])->name('broadcasts.resume');
             Route::post('/bots/{bot}/broadcasts/{broadcast}/retry', [BroadcastController::class, 'retryFailed'])->name('broadcasts.retry');
             Route::delete('/bots/{bot}/broadcasts/{broadcast}', [BroadcastController::class, 'destroy'])->name('broadcasts.destroy');
         });

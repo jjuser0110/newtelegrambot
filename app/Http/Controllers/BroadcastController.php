@@ -46,6 +46,7 @@ class BroadcastController extends Controller
             'scheduled_at' => ['nullable', 'date'],
             'batch_size' => ['required', 'integer', 'min:1', 'max:3000'],
             'batch_delay_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
+            'messages_per_second' => ['nullable', 'integer', 'min:1', 'max:'.Broadcast::MAX_MESSAGES_PER_SECOND],
         ], ['message.required_without_all' => 'Please enter a message, choose an image or pick a saved message.']);
 
         $buttons = ButtonInput::clean($request->input('buttons', []));
@@ -66,6 +67,7 @@ class BroadcastController extends Controller
             'scheduled_at' => $scheduledAt,
             'batch_size' => $request->integer('batch_size'),
             'batch_delay_minutes' => $request->integer('batch_delay_minutes'),
+            'messages_per_second' => $request->filled('messages_per_second') ? $request->integer('messages_per_second') : 15,
         ]);
 
         if ($scheduledAt->lte(now())) {
@@ -111,7 +113,56 @@ class BroadcastController extends Controller
                 ? $broadcast->next_batch_at->format('Y-m-d H:i')
                 : null,
             'finished' => $broadcast->isFinished(),
+            'messages_per_second' => $broadcast->messages_per_second,
+            'minutes_left' => $broadcast->estimatedMinutesRemaining(),
         ]);
+    }
+
+    /**
+     * Change speed / batch settings of a scheduled, running or paused broadcast. Applies within a few messages.
+     */
+    public function updateSpeed(Request $request, Bot $bot, Broadcast $broadcast): RedirectResponse
+    {
+        $this->ownBot($bot);
+
+        if ($broadcast->isFinished()) {
+            return back()->with('warning', 'This broadcast has already finished.');
+        }
+
+        $broadcast->update($request->validate([
+            'messages_per_second' => ['required', 'integer', 'min:1', 'max:'.Broadcast::MAX_MESSAGES_PER_SECOND],
+            'batch_size' => ['required', 'integer', 'min:1', 'max:3000'],
+            'batch_delay_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
+        ]));
+
+        return back()->with('success', "Speed updated to {$broadcast->messages_per_second} message(s)/second, {$broadcast->batch_size} per batch, {$broadcast->batch_delay_minutes} min pause.");
+    }
+
+    public function pause(Bot $bot, Broadcast $broadcast): RedirectResponse
+    {
+        $this->ownBot($bot);
+
+        if ($broadcast->status !== Broadcast::STATUS_RUNNING) {
+            return back()->with('warning', 'Only a running broadcast can be paused.');
+        }
+
+        $broadcast->update(['status' => Broadcast::STATUS_PAUSED]);
+
+        return back()->with('success', 'Broadcast paused. It stops within a few messages; press Resume to continue.');
+    }
+
+    public function resume(Bot $bot, Broadcast $broadcast): RedirectResponse
+    {
+        $this->ownBot($bot);
+
+        if ($broadcast->status !== Broadcast::STATUS_PAUSED) {
+            return back()->with('warning', 'Only a paused broadcast can be resumed.');
+        }
+
+        $broadcast->update(['status' => Broadcast::STATUS_RUNNING, 'next_batch_at' => now()]);
+        SendBroadcastBatch::dispatch($broadcast);
+
+        return back()->with('success', 'Broadcast resumed.');
     }
 
     public function cancel(Bot $bot, Broadcast $broadcast): RedirectResponse
