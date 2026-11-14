@@ -9,6 +9,10 @@
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
+                    <button type="button" id="star-button" class="btn btn-link p-0 fs-5 align-baseline {{ $tgUser->is_starred ? 'text-warning' : 'text-secondary' }}"
+                            title="Star = important chat (shows in the Starred tab)">
+                        <i class="bi {{ $tgUser->is_starred ? 'bi-star-fill' : 'bi-star' }}"></i>
+                    </button>
                     <b>{{ $tgUser->displayName() }}</b>
                     @if($tgUser->username)<span class="text-muted">&#64;{{ $tgUser->username }}</span>@endif
                     <span id="blocked-badge" class="badge text-bg-danger {{ $tgUser->is_blocked ? '' : 'd-none' }}">blocked bot</span>
@@ -202,6 +206,28 @@
             setAutoReply(data.auto_reply);
         } catch (e) {
             setAutoReply(!wanted);
+        }
+    });
+
+    /** Star / un-star this chat. */
+    const starButton = document.getElementById('star-button');
+    let starred = @json($tgUser->is_starred);
+    const showStar = () => {
+        starButton.classList.toggle('text-warning', starred);
+        starButton.classList.toggle('text-secondary', !starred);
+        starButton.innerHTML = `<i class="bi ${starred ? 'bi-star-fill' : 'bi-star'}"></i>`;
+    };
+    starButton.addEventListener('click', async () => {
+        try {
+            const response = await fetch(@json(route('chats.star', [$bot, $tgUser])), {
+                method: 'POST',
+                headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf },
+                body: JSON.stringify({ is_starred: !starred }),
+            });
+            starred = (await response.json()).is_starred;
+            showStar();
+        } catch (e) {
+            // leave as it was
         }
     });
 

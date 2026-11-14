@@ -179,7 +179,7 @@ class TelegramBotReplyTest extends TestCase
         $this->assertDatabaseHas('telegram_messages', ['chat_id' => 4242, 'direction' => 'out', 'message' => 'Hi Cara']);
 
         // pages render
-        $this->actingAs($bot->user)->get(route('chats.index', $bot))->assertOk()->assertSee('Cara');
+        $this->actingAs($bot->user)->get(route('chats.index', [$bot, 'tab' => 'all']))->assertOk()->assertSee('Cara');
         $this->actingAs($bot->user)->get(route('bots.show', $bot))->assertOk();
         $this->actingAs($bot->user)->get(route('bots.replies.create', $bot))->assertOk();
         $this->actingAs($bot->user)->get(route('broadcasts.create', $bot))->assertOk();

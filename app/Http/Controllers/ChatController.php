@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Bot;
 use App\Models\TelegramUser;
 use App\Services\MessageSender;
+use DateTimeInterface;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,24 +17,86 @@ use Throwable;
 
 class ChatController extends Controller
 {
+    /**
+     * Tabs of the chat list.
+     *
+     * @var array<string, string>
+     */
+    public const TABS = [
+        'starred' => 'Starred',
+        'recent' => 'Recent',
+        'old' => 'Old',
+        'all' => 'All',
+    ];
+
+    /**
+     * Choices for "a chat is old after N days without messages".
+     *
+     * @var array<int, int>
+     */
+    public const OLD_AFTER_DAYS = [1, 3, 7, 14, 30];
+
     public function index(Request $request, Bot $bot): View
     {
         $this->ownBot($bot);
 
-        $users = $bot->telegramUsers()
+        $tab = array_key_exists($request->tab, self::TABS) ? $request->tab : 'recent';
+        $days = in_array($request->integer('days'), self::OLD_AFTER_DAYS, true) ? $request->integer('days') : 7;
+        $cutoff = now()->subDays($days);
+
+        $users = $this->applyTab($bot->telegramUsers(), $tab, $cutoff)
             ->when($request->q, fn ($q, $s) => $q->where(fn ($w) => $w
                 ->where('username', 'like', "%$s%")
                 ->orWhere('first_name', 'like', "%$s%")
                 ->orWhere('last_name', 'like', "%$s%")
                 ->orWhere('chat_id', 'like', "%$s%")))
-            ->withCount('messages')
+            ->withCount([
+                'messages',
+                'messages as unread_count' => fn ($query) => $query
+                    ->where('direction', 'in')
+                    ->whereColumn('telegram_messages.id', '>', 'telegram_users.last_read_message_id'),
+            ])
             ->orderByDesc('last_message_at')
             ->paginate(30)
             ->withQueryString();
 
+        $tabCounts = collect(self::TABS)->map(fn ($label, $key) => $this->applyTab($bot->telegramUsers(), $key, $cutoff)->count());
         $latestMessageId = (int) $bot->messages()->max('id');
 
-        return view('chats.index', compact('bot', 'users', 'latestMessageId'));
+        return view('chats.index', compact('bot', 'users', 'latestMessageId', 'tab', 'days', 'tabCounts'));
+    }
+
+    /**
+     * Star / un-star a chat so it shows in the "Starred" tab.
+     */
+    public function toggleStar(Request $request, Bot $bot, TelegramUser $telegramUser): JsonResponse|RedirectResponse
+    {
+        $this->ownBot($bot);
+
+        $starred = $request->has('is_starred') ? $request->boolean('is_starred') : ! $telegramUser->is_starred;
+        $telegramUser->update(['is_starred' => $starred]);
+
+        if ($request->expectsJson()) {
+            return response()->json(['is_starred' => $starred]);
+        }
+
+        return back()->with('success', $starred ? 'Chat starred.' : 'Star removed.');
+    }
+
+    /**
+     * Limit the chat list to one tab: starred, recent (message after $cutoff), old (no message since $cutoff) or all.
+     *
+     * @param  HasMany<TelegramUser, Bot>  $query
+     * @return HasMany<TelegramUser, Bot>
+     */
+    private function applyTab(HasMany $query, string $tab, DateTimeInterface $cutoff): HasMany
+    {
+        return match ($tab) {
+            'starred' => $query->where('is_starred', true),
+            'recent' => $query->where('last_message_at', '>=', $cutoff),
+            'old' => $query->where(fn ($old) => $old->where('last_message_at', '<', $cutoff)->orWhereNull('last_message_at')),
+            default => $query,
+        };
     }
 
     /**
@@ -50,6 +114,7 @@ class ChatController extends Controller
         $this->ownBot($bot);
         $messages = $telegramUser->messages()->latest('id')->limit(200)->get()->reverse();
         $savedMessages = $bot->savedMessages()->latest()->get();
+        $telegramUser->markReadUpTo((int) ($messages->last()?->id ?? 0));
 
         return view('chats.show', [
             'bot' => $bot,
@@ -72,6 +137,11 @@ class ChatController extends Controller
         $messages = $telegramUser->messages()->where('id', '>', $after)->orderBy('id')->limit(100)->get();
         $savedKeys = $this->savedKeys($bot);
         $telegramUser->refresh();
+
+        // The chat is open on screen, so these new messages count as read.
+        if ($messages->isNotEmpty()) {
+            $telegramUser->markReadUpTo((int) $messages->last()->id);
+        }
 
         return response()->json([
             'html' => $messages->map(fn ($message) => view('partials.chat-message', [

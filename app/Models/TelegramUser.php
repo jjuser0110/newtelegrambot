@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['bot_id', 'chat_id', 'username', 'first_name', 'last_name', 'language_code', 'is_blocked', 'auto_reply', 'last_message_at'])]
+#[Fillable(['bot_id', 'chat_id', 'username', 'first_name', 'last_name', 'language_code', 'is_blocked', 'auto_reply', 'is_starred', 'last_read_message_id', 'last_message_at'])]
 class TelegramUser extends Model
 {
     /**
@@ -18,6 +18,8 @@ class TelegramUser extends Model
     protected $attributes = [
         'is_blocked' => false,
         'auto_reply' => true,
+        'is_starred' => false,
+        'last_read_message_id' => 0,
     ];
 
     protected function casts(): array
@@ -25,6 +27,8 @@ class TelegramUser extends Model
         return [
             'is_blocked' => 'boolean',
             'auto_reply' => 'boolean',
+            'is_starred' => 'boolean',
+            'last_read_message_id' => 'integer',
             'last_message_at' => 'datetime',
         ];
     }
@@ -37,6 +41,16 @@ class TelegramUser extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(TelegramMessage::class);
+    }
+
+    /**
+     * Remember that everything up to this message has been seen in the panel.
+     */
+    public function markReadUpTo(int $messageId): void
+    {
+        if ($messageId > $this->last_read_message_id) {
+            $this->update(['last_read_message_id' => $messageId]);
+        }
     }
 
     public function displayName(): string

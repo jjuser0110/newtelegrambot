@@ -51,6 +51,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/bots/{bot}/chats/{telegramUser}', [ChatController::class, 'send'])->name('chats.send');
             Route::get('/bots/{bot}/chats/{telegramUser}/messages', [ChatController::class, 'messages'])->name('chats.messages');
             Route::post('/bots/{bot}/chats/{telegramUser}/auto-reply', [ChatController::class, 'toggleAutoReply'])->name('chats.auto-reply');
+            Route::post('/bots/{bot}/chats/{telegramUser}/star', [ChatController::class, 'toggleStar'])->name('chats.star');
 
             Route::get('/bots/{bot}/broadcasts', [BroadcastController::class, 'index'])->name('broadcasts.index');
             Route::get('/bots/{bot}/broadcasts/create', [BroadcastController::class, 'create'])->name('broadcasts.create');
