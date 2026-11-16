@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Storage;
  */
 class MessageSender
 {
+    /**
+     * Buttons per keyboard row: 2 buttons = half + half, 3 buttons = half + half, then one full width.
+     */
+    public const BUTTONS_PER_ROW = 2;
+
     public function sendReply(Bot $bot, TelegramUser $user, BotReply $reply): TelegramMessage
     {
         if ($reply->savedMessage) {
@@ -89,26 +94,27 @@ class MessageSender
     }
 
     /**
-     * One button per row. "url" buttons open a link, "callback" buttons trigger the reply whose trigger = value.
+     * Two buttons per row (each half width); an odd last button gets a full-width row of its own.
+     * "url" buttons open a link, "callback" buttons trigger the reply whose trigger = value.
      *
      * @param  array<int, array{text?: string, type?: string, value?: string}>  $buttons
      * @return array{inline_keyboard: array<int, array<int, array<string, string>>>}|null
      */
     public function buildKeyboard(array $buttons): ?array
     {
-        $rows = [];
+        $keys = [];
         foreach ($buttons as $button) {
             $label = trim($button['text'] ?? '');
             $value = trim($button['value'] ?? '');
             if ($label === '' || $value === '') {
                 continue;
             }
-            $rows[] = [($button['type'] ?? 'url') === 'callback'
+            $keys[] = ($button['type'] ?? 'url') === 'callback'
                 ? ['text' => $label, 'callback_data' => mb_strcut($value, 0, 64)]
-                : ['text' => $label, 'url' => $value]];
+                : ['text' => $label, 'url' => $value];
         }
 
-        return $rows ? ['inline_keyboard' => $rows] : null;
+        return $keys ? ['inline_keyboard' => array_chunk($keys, self::BUTTONS_PER_ROW)] : null;
     }
 
     /**

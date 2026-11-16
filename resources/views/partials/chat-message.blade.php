@@ -13,9 +13,7 @@
             <div class="fst-italic small"><i class="bi bi-bookmark-star"></i> {{ $m->type === 'forward' ? 'Forwarded' : 'Copied' }} saved message: {{ $m->payload['saved_label'] ?? '' }}</div>
         @endif
         @if($m->message !== null && $m->message !== '')<div class="msg-text">{{ $m->message }}</div>@endif
-        @foreach($m->payload['buttons'] ?? [] as $b)
-            <div class="small border rounded px-2 mt-1">{{ $b['text'] }}</div>
-        @endforeach
+        @include('partials.button-preview', ['buttons' => $m->payload['buttons'] ?? [], 'dark' => $m->direction === 'out'])
         <div class="small opacity-75 d-flex justify-content-between gap-3 mt-1">
             <span>
                 @if($m->telegram_message_id)msg #{{ $m->telegram_message_id }}@endif

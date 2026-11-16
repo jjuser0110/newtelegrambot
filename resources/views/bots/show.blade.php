@@ -56,11 +56,7 @@
                     @else
                         <div style="white-space:pre-wrap" class="small">{{ \Illuminate\Support\Str::limit($reply->message, 300) }}</div>
                     @endif
-                    @foreach($reply->buttons ?? [] as $b)
-                        <div class="btn btn-sm btn-outline-primary w-100 mt-1 disabled">
-                            <i class="bi {{ $b['type'] === 'url' ? 'bi-box-arrow-up-right' : 'bi-reply' }}"></i> {{ $b['text'] }}
-                        </div>
-                    @endforeach
+                    @include('partials.button-preview', ['buttons' => $reply->buttons ?? []])
                 </div>
                 <div class="card-footer bg-white border-0 d-flex gap-2">
                     <a href="{{ route('bots.replies.edit', [$bot, $reply]) }}" class="btn btn-sm btn-outline-primary">Edit</a>

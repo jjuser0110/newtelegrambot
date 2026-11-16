@@ -85,6 +85,7 @@
                 @if($broadcast->image_path)
                     <img src="{{ asset('storage/'.$broadcast->image_path) }}" class="img-fluid rounded mt-2" alt="">
                 @endif
+                @include('partials.button-preview', ['buttons' => $broadcast->buttons ?? []])
             </div>
         </div>
     </div>
