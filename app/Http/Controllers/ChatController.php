@@ -80,7 +80,7 @@ class ChatController extends Controller
             return response()->json(['is_starred' => $starred]);
         }
 
-        return back()->with('success', $starred ? 'Chat starred.' : 'Star removed.');
+        return back()->with('success', $starred ? __('Chat starred.') : __('Star removed.'));
     }
 
     /**
@@ -166,7 +166,7 @@ class ChatController extends Controller
         $enabled = $request->has('auto_reply') ? $request->boolean('auto_reply') : ! $telegramUser->auto_reply;
         $telegramUser->update(['auto_reply' => $enabled]);
 
-        $message = $enabled ? 'Auto-reply is ON for this user.' : 'Auto-reply is OFF for this user — you are chatting manually.';
+        $message = $enabled ? __('Auto-reply is ON for this user.') : __('Auto-reply is OFF for this user — you are chatting manually.');
 
         if ($request->expectsJson()) {
             return response()->json(['auto_reply' => $enabled, 'message' => $message]);
@@ -185,7 +185,7 @@ class ChatController extends Controller
             'message' => ['nullable', 'string', 'max:4096', 'required_without_all:image,saved_message_id'],
             'image' => ['nullable', 'image', 'max:5120'],
             'buttons' => ['nullable', 'array', 'max:20'],
-        ], ['message.required_without_all' => 'Please enter a message, choose an image or pick a saved message.']);
+        ], ['message.required_without_all' => __('Please enter a message, choose an image or pick a saved message.')]);
 
         $buttons = ButtonInput::clean($request->input('buttons', []));
 
@@ -199,17 +199,17 @@ class ChatController extends Controller
             }
         } catch (Throwable $e) {
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Send failed: '.$e->getMessage()], 422);
+                return response()->json(['message' => __('Send failed: :error', ['error' => $e->getMessage()])], 422);
             }
 
-            return back()->withInput()->withErrors(['message' => 'Send failed: '.$e->getMessage()]);
+            return back()->withInput()->withErrors(['message' => __('Send failed: :error', ['error' => $e->getMessage()])]);
         }
 
         if ($request->expectsJson()) {
             return response()->json(['ok' => true]);
         }
 
-        return back()->with('success', 'Message sent.');
+        return back()->with('success', __('Message sent.'));
     }
 
     /**

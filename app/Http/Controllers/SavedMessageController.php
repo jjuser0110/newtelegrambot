@@ -39,7 +39,7 @@ class SavedMessageController extends Controller
 
         if ($request->filled('telegram_message_id')) {
             $source = TelegramMessage::findOrFail($request->telegram_message_id);
-            abort_if($source->direction !== 'in' || ! $source->telegram_message_id, 422, 'Only messages received from users can be saved.');
+            abort_if($source->direction !== 'in' || ! $source->telegram_message_id, 422, __('Only messages received from users can be saved.'));
 
             $attributes = [
                 'from_chat_id' => $source->chat_id,
@@ -61,10 +61,10 @@ class SavedMessageController extends Controller
             'message_id' => $attributes['message_id'],
         ]);
         $savedMessage->fill($attributes);
-        $savedMessage->label = $request->label ?: ($savedMessage->label ?? 'Message #'.$attributes['message_id']);
+        $savedMessage->label = $request->label ?: ($savedMessage->label ?? __('Message #:id', ['id' => $attributes['message_id']]));
         $savedMessage->save();
 
-        return back()->with('success', 'Saved message "'.$savedMessage->label.'". You can now use it in replies, chats and broadcasts.');
+        return back()->with('success', __('Saved message ":label". You can now use it in replies, chats and broadcasts.', ['label' => $savedMessage->label]));
     }
 
     public function update(Request $request, Bot $bot, SavedMessage $savedMessage): RedirectResponse
@@ -72,7 +72,7 @@ class SavedMessageController extends Controller
         $this->ownBot($bot);
         $savedMessage->update($request->validate(['label' => ['required', 'string', 'max:100']]));
 
-        return back()->with('success', 'Label updated.');
+        return back()->with('success', __('Label updated.'));
     }
 
     public function destroy(Bot $bot, SavedMessage $savedMessage): RedirectResponse
@@ -80,7 +80,7 @@ class SavedMessageController extends Controller
         $this->ownBot($bot);
         $savedMessage->delete();
 
-        return back()->with('success', 'Saved message removed.');
+        return back()->with('success', __('Saved message removed.'));
     }
 
     /**

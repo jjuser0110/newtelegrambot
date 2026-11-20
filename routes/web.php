@@ -6,12 +6,17 @@ use App\Http\Controllers\BotController;
 use App\Http\Controllers\BotReplyController;
 use App\Http\Controllers\BroadcastController;
 use App\Http\Controllers\ChatController;
+use App\Http\Controllers\LocaleController;
+use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\SavedMessageController;
 use App\Http\Controllers\TelegramWebhookController;
 use Illuminate\Support\Facades\Route;
 
 // Telegram webhook (public, protected by the secret token header)
 Route::post('/telegram/webhook/{bot}', TelegramWebhookController::class)->name('telegram.webhook');
+
+// Panel language switcher (works on the login page too)
+Route::post('/locale', [LocaleController::class, 'update'])->name('locale.update');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -21,6 +26,10 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
     Route::get('/', [AuthController::class, 'home'])->name('home');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+
+    // Every logged-in user can change their own password
+    Route::get('/account/password', [PasswordController::class, 'edit'])->name('password.edit');
+    Route::put('/account/password', [PasswordController::class, 'update'])->middleware('throttle:10,1')->name('password.update');
 
     // Superadmin only
     Route::middleware('role:superadmin')->prefix('admin')->name('admin.')->group(function () {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\SetLocale;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -33,12 +34,13 @@ class CompanyController extends Controller
             'username' => ['required', 'string', 'max:50', 'alpha_dash', 'unique:users,username'],
             'password' => ['required', 'string', 'min:6'],
             'bot_limit' => ['required', 'integer', 'min:0', 'max:1000'],
+            'locale' => ['nullable', Rule::in(array_keys(SetLocale::LOCALES))],
             'is_active' => ['boolean'],
         ]);
 
         User::create($data + ['role' => User::ROLE_COMPANY, 'is_active' => $request->boolean('is_active')]);
 
-        return redirect()->route('admin.companies.index')->with('success', 'Company created.');
+        return redirect()->route('admin.companies.index')->with('success', __('Company created.'));
     }
 
     public function edit(User $company)
@@ -57,6 +59,7 @@ class CompanyController extends Controller
             'username' => ['required', 'string', 'max:50', 'alpha_dash', Rule::unique('users', 'username')->ignore($company->id)],
             'password' => ['nullable', 'string', 'min:6'],
             'bot_limit' => ['required', 'integer', 'min:0', 'max:1000'],
+            'locale' => ['nullable', Rule::in(array_keys(SetLocale::LOCALES))],
         ]);
 
         if (empty($data['password'])) {
@@ -66,7 +69,7 @@ class CompanyController extends Controller
 
         $company->update($data);
 
-        return redirect()->route('admin.companies.index')->with('success', 'Company updated.');
+        return redirect()->route('admin.companies.index')->with('success', __('Company updated.'));
     }
 
     public function destroy(User $company)
@@ -82,7 +85,7 @@ class CompanyController extends Controller
         }
         $company->delete();
 
-        return redirect()->route('admin.companies.index')->with('success', 'Company deleted.');
+        return redirect()->route('admin.companies.index')->with('success', __('Company deleted.'));
     }
 
     private function ensureCompany(User $user): void

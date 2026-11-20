@@ -47,7 +47,7 @@ class BroadcastController extends Controller
             'batch_size' => ['required', 'integer', 'min:1', 'max:3000'],
             'batch_delay_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
             'messages_per_second' => ['nullable', 'integer', 'min:1', 'max:'.Broadcast::MAX_MESSAGES_PER_SECOND],
-        ], ['message.required_without_all' => 'Please enter a message, choose an image or pick a saved message.']);
+        ], ['message.required_without_all' => __('Please enter a message, choose an image or pick a saved message.')]);
 
         $buttons = ButtonInput::clean($request->input('buttons', []));
         $usesSaved = $request->filled('saved_message_id');
@@ -73,11 +73,11 @@ class BroadcastController extends Controller
         if ($scheduledAt->lte(now())) {
             SendBroadcastBatch::dispatch($broadcast);
 
-            return redirect()->route('broadcasts.show', [$bot, $broadcast])->with('success', 'Broadcast started.');
+            return redirect()->route('broadcasts.show', [$bot, $broadcast])->with('success', __('Broadcast started.'));
         }
 
         return redirect()->route('broadcasts.show', [$bot, $broadcast])
-            ->with('success', 'Broadcast scheduled for '.$scheduledAt->format('Y-m-d H:i').' ('.config('app.timezone').').');
+            ->with('success', __('Broadcast scheduled for :time (:tz).', ['time' => $scheduledAt->format('Y-m-d H:i'), 'tz' => config('app.timezone')]));
     }
 
     public function show(Request $request, Bot $bot, Broadcast $broadcast): View
@@ -126,7 +126,7 @@ class BroadcastController extends Controller
         $this->ownBot($bot);
 
         if ($broadcast->isFinished()) {
-            return back()->with('warning', 'This broadcast has already finished.');
+            return back()->with('warning', __('This broadcast has already finished.'));
         }
 
         $broadcast->update($request->validate([
@@ -135,7 +135,7 @@ class BroadcastController extends Controller
             'batch_delay_minutes' => ['required', 'integer', 'min:0', 'max:1440'],
         ]));
 
-        return back()->with('success', "Speed updated to {$broadcast->messages_per_second} message(s)/second, {$broadcast->batch_size} per batch, {$broadcast->batch_delay_minutes} min pause.");
+        return back()->with('success', __('Speed updated to :speed message(s)/second, :size per batch, :pause min pause.', ['speed' => $broadcast->messages_per_second, 'size' => $broadcast->batch_size, 'pause' => $broadcast->batch_delay_minutes]));
     }
 
     public function pause(Bot $bot, Broadcast $broadcast): RedirectResponse
@@ -143,12 +143,12 @@ class BroadcastController extends Controller
         $this->ownBot($bot);
 
         if ($broadcast->status !== Broadcast::STATUS_RUNNING) {
-            return back()->with('warning', 'Only a running broadcast can be paused.');
+            return back()->with('warning', __('Only a running broadcast can be paused.'));
         }
 
         $broadcast->update(['status' => Broadcast::STATUS_PAUSED]);
 
-        return back()->with('success', 'Broadcast paused. It stops within a few messages; press Resume to continue.');
+        return back()->with('success', __('Broadcast paused. It stops within a few messages; press Resume to continue.'));
     }
 
     public function resume(Bot $bot, Broadcast $broadcast): RedirectResponse
@@ -156,13 +156,13 @@ class BroadcastController extends Controller
         $this->ownBot($bot);
 
         if ($broadcast->status !== Broadcast::STATUS_PAUSED) {
-            return back()->with('warning', 'Only a paused broadcast can be resumed.');
+            return back()->with('warning', __('Only a paused broadcast can be resumed.'));
         }
 
         $broadcast->update(['status' => Broadcast::STATUS_RUNNING, 'next_batch_at' => now()]);
         SendBroadcastBatch::dispatch($broadcast);
 
-        return back()->with('success', 'Broadcast resumed.');
+        return back()->with('success', __('Broadcast resumed.'));
     }
 
     public function cancel(Bot $bot, Broadcast $broadcast): RedirectResponse
@@ -173,7 +173,7 @@ class BroadcastController extends Controller
             $broadcast->update(['status' => Broadcast::STATUS_CANCELLED, 'finished_at' => now(), 'next_batch_at' => null]);
         }
 
-        return back()->with('success', 'Broadcast cancelled. Messages already sent cannot be recalled.');
+        return back()->with('success', __('Broadcast cancelled. Messages already sent cannot be recalled.'));
     }
 
     /**
@@ -184,12 +184,12 @@ class BroadcastController extends Controller
         $this->ownBot($bot);
 
         if (! in_array($broadcast->status, [Broadcast::STATUS_RUNNING, Broadcast::STATUS_COMPLETED], true)) {
-            return back()->with('warning', 'Only running or completed broadcasts can retry failed recipients.');
+            return back()->with('warning', __('Only running or completed broadcasts can retry failed recipients.'));
         }
 
         $count = $broadcast->recipients()->where('status', 'failed')->update(['status' => 'pending', 'error' => null, 'sent_at' => null]);
         if ($count === 0) {
-            return back()->with('warning', 'There are no failed recipients to retry.');
+            return back()->with('warning', __('There are no failed recipients to retry.'));
         }
 
         $broadcast->update([
@@ -200,7 +200,7 @@ class BroadcastController extends Controller
         ]);
         SendBroadcastBatch::dispatch($broadcast);
 
-        return back()->with('success', "Retrying $count failed recipient(s).");
+        return back()->with('success', __('Retrying :count failed recipient(s).', ['count' => $count]));
     }
 
     public function destroy(Bot $bot, Broadcast $broadcast): RedirectResponse
@@ -208,13 +208,13 @@ class BroadcastController extends Controller
         $this->ownBot($bot);
 
         if ($broadcast->status === Broadcast::STATUS_RUNNING) {
-            return back()->with('warning', 'Cancel the broadcast before deleting it.');
+            return back()->with('warning', __('Cancel the broadcast before deleting it.'));
         }
         if ($broadcast->image_path) {
             Storage::disk('public')->delete($broadcast->image_path);
         }
         $broadcast->delete();
 
-        return redirect()->route('broadcasts.index', $bot)->with('success', 'Broadcast deleted.');
+        return redirect()->route('broadcasts.index', $bot)->with('success', __('Broadcast deleted.'));
     }
 }

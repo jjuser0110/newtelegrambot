@@ -21,15 +21,20 @@ class AuthController extends Controller
         ]);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
-            throw ValidationException::withMessages(['username' => 'Invalid username or password.']);
+            throw ValidationException::withMessages(['username' => __('Invalid username or password.')]);
         }
 
         if (! Auth::user()->is_active) {
             Auth::logout();
-            throw ValidationException::withMessages(['username' => 'Your account is disabled.']);
+            throw ValidationException::withMessages(['username' => __('Your account is disabled.')]);
         }
 
         $request->session()->regenerate();
+
+        // Keep the language picked on the login page for this account.
+        if ($request->session()->has('locale')) {
+            Auth::user()->update(['locale' => $request->session()->get('locale')]);
+        }
 
         return redirect()->intended(route('home'));
     }

@@ -35,7 +35,7 @@ class BotReplyController extends Controller
 
         $bot->replies()->create($data);
 
-        return redirect()->route('bots.show', $bot)->with('success', 'Reply saved.');
+        return redirect()->route('bots.show', $bot)->with('success', __('Reply saved.'));
     }
 
     public function edit(Bot $bot, BotReply $reply)
@@ -62,7 +62,7 @@ class BotReplyController extends Controller
 
         $reply->update($data);
 
-        return redirect()->route('bots.show', $bot)->with('success', 'Reply updated.');
+        return redirect()->route('bots.show', $bot)->with('success', __('Reply updated.'));
     }
 
     public function destroy(Bot $bot, BotReply $reply)
@@ -73,7 +73,7 @@ class BotReplyController extends Controller
         }
         $reply->delete();
 
-        return back()->with('success', 'Reply deleted.');
+        return back()->with('success', __('Reply deleted.'));
     }
 
     /**
@@ -92,7 +92,7 @@ class BotReplyController extends Controller
             'buttons.*.text' => ['nullable', 'string', 'max:64'],
             'buttons.*.type' => ['nullable', 'in:url,callback'],
             'buttons.*.value' => ['nullable', 'string', 'max:500'],
-        ], ['message.required_without_all' => 'Please enter a message, upload an image or choose a saved message.']);
+        ], ['message.required_without_all' => __('Please enter a message, upload an image or choose a saved message.')]);
 
         return [
             'trigger' => trim($request->trigger),

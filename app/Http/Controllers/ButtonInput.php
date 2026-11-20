@@ -19,13 +19,13 @@ class ButtonInput
                 continue;
             }
             if ($text === '' || $value === '') {
-                throw ValidationException::withMessages(["buttons.$i.text" => 'Button '.($i + 1).' needs both a label and a value.']);
+                throw ValidationException::withMessages(["buttons.$i.text" => __('Button :number needs both a label and a value.', ['number' => $i + 1])]);
             }
             if ($type === 'url' && ! preg_match('#^(https?|tg)://#i', $value)) {
-                throw ValidationException::withMessages(["buttons.$i.value" => 'Button '.($i + 1).': link must start with https://, http:// or tg://']);
+                throw ValidationException::withMessages(["buttons.$i.value" => __('Button :number: link must start with https://, http:// or tg://', ['number' => $i + 1])]);
             }
             if ($type === 'callback' && strlen($value) > 64) {
-                throw ValidationException::withMessages(["buttons.$i.value" => 'Button '.($i + 1).': keyword must be at most 64 bytes.']);
+                throw ValidationException::withMessages(["buttons.$i.value" => __('Button :number: keyword must be at most 64 bytes.', ['number' => $i + 1])]);
             }
             $buttons[] = compact('text', 'type', 'value');
         }

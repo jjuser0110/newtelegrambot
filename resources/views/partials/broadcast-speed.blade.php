@@ -5,24 +5,24 @@
     $batchDelay = old('batch_delay_minutes', $batchDelay);
 @endphp
 <div class="broadcast-speed" data-audience="{{ $audience }}">
-    <label class="form-label">Speed</label>
+    <label class="form-label">{{ __('Speed') }}</label>
     <div class="d-flex flex-wrap gap-2 mb-2">
-        @foreach(\App\Models\Broadcast::SPEED_PRESETS as $perSecond => $label)
+        @foreach(\App\Models\Broadcast::speedPresets() as $perSecond => $label)
             <button type="button" class="btn btn-sm btn-outline-secondary speed-preset" data-speed="{{ $perSecond }}">{{ $label }}</button>
         @endforeach
     </div>
     <div class="row g-3">
         <div class="col-md-4">
-            <label class="form-label small text-muted mb-1">Messages per second (1–{{ \App\Models\Broadcast::MAX_MESSAGES_PER_SECOND }})</label>
+            <label class="form-label small text-muted mb-1">{{ __('Messages per second (1–:max)', ['max' => \App\Models\Broadcast::MAX_MESSAGES_PER_SECOND]) }}</label>
             <input type="number" name="messages_per_second" min="1" max="{{ \App\Models\Broadcast::MAX_MESSAGES_PER_SECOND }}"
                    value="{{ $speed }}" class="form-control speed-input" required>
         </div>
         <div class="col-md-4">
-            <label class="form-label small text-muted mb-1">Batch size (messages, then pause)</label>
+            <label class="form-label small text-muted mb-1">{{ __('Batch size (messages, then pause)') }}</label>
             <input type="number" name="batch_size" min="1" max="3000" value="{{ $batchSize }}" class="form-control batch-size-input" required>
         </div>
         <div class="col-md-4">
-            <label class="form-label small text-muted mb-1">Pause between batches (minutes)</label>
+            <label class="form-label small text-muted mb-1">{{ __('Pause between batches (minutes)') }}</label>
             <input type="number" name="batch_delay_minutes" min="0" max="1440" value="{{ $batchDelay }}" class="form-control batch-delay-input" required>
         </div>
     </div>
@@ -38,6 +38,9 @@ document.querySelectorAll('.broadcast-speed').forEach((wrap) => {
     const delay = wrap.querySelector('.batch-delay-input');
     const out = wrap.querySelector('.speed-estimate');
     const presets = wrap.querySelectorAll('.speed-preset');
+    const withAudience = @js(__(':audience recipient(s) · :speed/second · :batches batch(es) · about :minutes minute(s) in total'));
+    const withoutAudience = @js(__(':speed/second · :size per batch · :pause min pause'));
+    const fill = (template, values) => template.replace(/:(\w+)/g, (match, key) => (key in values ? values[key] : match));
 
     const update = () => {
         const perSecond = Math.min(25, Math.max(1, parseInt(speed.value || '1', 10)));
@@ -46,8 +49,8 @@ document.querySelectorAll('.broadcast-speed').forEach((wrap) => {
         const batches = Math.max(1, Math.ceil(audience / batchSize));
         const minutes = Math.ceil(audience / perSecond / 60) + (batches - 1) * pause;
         out.textContent = audience > 0
-            ? `${audience} recipient(s) · ${perSecond}/second · ${batches} batch(es) · about ${minutes} minute(s) in total`
-            : `${perSecond}/second · ${batchSize} per batch · ${pause} min pause`;
+            ? fill(withAudience, { audience, speed: perSecond, batches, minutes })
+            : fill(withoutAudience, { speed: perSecond, size: batchSize, pause });
         presets.forEach((button) => {
             button.classList.toggle('active', parseInt(button.dataset.speed, 10) === perSecond);
         });

@@ -2,55 +2,55 @@
 @section('title', $tgUser->displayName())
 
 @section('content')
-<nav class="mb-2"><a href="{{ route('chats.index', $bot) }}">&larr; All chats</a></nav>
+<nav class="mb-2"><a href="{{ route('chats.index', $bot) }}">&larr; {{ __('All chats') }}</a></nav>
 
 <div class="row g-4">
     <div class="col-lg-8">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="card-header bg-body d-flex flex-wrap justify-content-between align-items-center gap-2">
                 <div>
                     <button type="button" id="star-button" class="btn btn-link p-0 fs-5 align-baseline {{ $tgUser->is_starred ? 'text-warning' : 'text-secondary' }}"
-                            title="Star = important chat (shows in the Starred tab)">
+                            title="{{ __('Star = important chat (shows in the Starred tab)') }}">
                         <i class="bi {{ $tgUser->is_starred ? 'bi-star-fill' : 'bi-star' }}"></i>
                     </button>
                     <b>{{ $tgUser->displayName() }}</b>
                     @if($tgUser->username)<span class="text-muted">&#64;{{ $tgUser->username }}</span>@endif
-                    <span id="blocked-badge" class="badge text-bg-danger {{ $tgUser->is_blocked ? '' : 'd-none' }}">blocked bot</span>
-                    <span class="badge text-bg-light border ms-1" title="New messages appear automatically">
-                        <span class="spinner-grow spinner-grow-sm text-success" style="width: .5rem; height: .5rem;"></span> live
+                    <span id="blocked-badge" class="badge text-bg-danger {{ $tgUser->is_blocked ? '' : 'd-none' }}">{{ __('blocked bot') }}</span>
+                    <span class="badge text-bg-body-tertiary border ms-1" title="{{ __('New messages appear automatically') }}">
+                        <span class="spinner-grow spinner-grow-sm text-success" style="width: .5rem; height: .5rem;"></span> {{ __('live') }}
                     </span>
                 </div>
-                <div class="form-check form-switch mb-0" title="When OFF, the bot does not auto-reply to this user, so you can chat with them yourself.">
+                <div class="form-check form-switch mb-0" title="{{ __('When OFF, the bot does not auto-reply to this user, so you can chat with them yourself.') }}">
                     <input class="form-check-input" type="checkbox" role="switch" id="auto-reply-switch" @checked($tgUser->auto_reply)>
                     <label class="form-check-label small" for="auto-reply-switch" id="auto-reply-label">
-                        {{ $tgUser->auto_reply ? 'Auto-reply ON' : 'Auto-reply OFF (manual chat)' }}
+                        {{ $tgUser->auto_reply ? __('Auto-reply ON') : __('Auto-reply OFF (manual chat)') }}
                     </label>
                 </div>
             </div>
             <div class="card-body chat-box" id="chat-box">
-                <div id="chat-empty" class="text-muted text-center {{ $messages->isEmpty() ? '' : 'd-none' }}">No messages.</div>
+                <div id="chat-empty" class="text-muted text-center {{ $messages->isEmpty() ? '' : 'd-none' }}">{{ __('No messages.') }}</div>
                 @foreach($messages as $m)
                     @include('partials.chat-message', ['m' => $m, 'bot' => $bot, 'savedKeys' => $savedKeys])
                 @endforeach
             </div>
-            <div class="card-footer bg-white">
+            <div class="card-footer bg-body">
                 <div id="send-error" class="alert alert-danger py-2 small d-none"></div>
                 <form method="POST" action="{{ route('chats.send', [$bot, $tgUser]) }}" enctype="multipart/form-data" id="send-form">
                     @csrf
                     <div class="compose-only">
                         <textarea name="message" rows="3" class="form-control mb-2" id="message-input"
-                                  placeholder="Type a message to send via &#64;{{ $bot->username }} (Enter to send, Shift+Enter for a new line)" maxlength="4096">{{ old('message') }}</textarea>
+                                  placeholder="{{ __('Type a message to send via :bot (Enter to send, Shift+Enter for a new line)', ['bot' => '@'.$bot->username]) }}" maxlength="4096">{{ old('message') }}</textarea>
                         <input type="file" name="image" accept="image/*" class="form-control mb-2">
                     </div>
                     <details class="mb-2" @if($savedMessages->isNotEmpty() && old('saved_message_id')) open @endif>
-                        <summary class="small text-muted">Reply with a saved message (copy / forward)</summary>
+                        <summary class="small text-muted">{{ __('Reply with a saved message (copy / forward)') }}</summary>
                         <div class="mt-2">@include('partials.saved-message-picker', ['savedMessages' => $savedMessages, 'bot' => $bot])</div>
                     </details>
                     <details class="mb-2">
-                        <summary class="small text-muted">Add buttons</summary>
+                        <summary class="small text-muted">{{ __('Add buttons') }}</summary>
                         <div class="mt-2">@include('partials.buttons', ['buttons' => []])</div>
                     </details>
-                    <button class="btn btn-primary" id="send-button"><i class="bi bi-send"></i> Send</button>
+                    <button class="btn btn-primary" id="send-button"><i class="bi bi-send"></i> {{ __('Send') }}</button>
                 </form>
             </div>
         </div>
@@ -58,15 +58,15 @@
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm">
             <div class="card-body small">
-                <h6>User details</h6>
+                <h6>{{ __('User details') }}</h6>
                 <dl class="row mb-0">
-                    <dt class="col-5">Chat ID</dt><dd class="col-7"><code>{{ $tgUser->chat_id }}</code></dd>
-                    <dt class="col-5">First name</dt><dd class="col-7">{{ $tgUser->first_name ?? '-' }}</dd>
-                    <dt class="col-5">Last name</dt><dd class="col-7">{{ $tgUser->last_name ?? '-' }}</dd>
-                    <dt class="col-5">Username</dt><dd class="col-7">{{ $tgUser->username ? '@'.$tgUser->username : '-' }}</dd>
-                    <dt class="col-5">Language</dt><dd class="col-7">{{ $tgUser->language_code ?? '-' }}</dd>
-                    <dt class="col-5">First seen</dt><dd class="col-7">{{ $tgUser->created_at->format('Y-m-d H:i') }}</dd>
-                    <dt class="col-5">Last message</dt><dd class="col-7">{{ $tgUser->last_message_at?->format('Y-m-d H:i') ?? '-' }}</dd>
+                    <dt class="col-5">{{ __('Chat ID') }}</dt><dd class="col-7"><code>{{ $tgUser->chat_id }}</code></dd>
+                    <dt class="col-5">{{ __('First name') }}</dt><dd class="col-7">{{ $tgUser->first_name ?? '-' }}</dd>
+                    <dt class="col-5">{{ __('Last name') }}</dt><dd class="col-7">{{ $tgUser->last_name ?? '-' }}</dd>
+                    <dt class="col-5">{{ __('Username') }}</dt><dd class="col-7">{{ $tgUser->username ? '@'.$tgUser->username : '-' }}</dd>
+                    <dt class="col-5">{{ __('Language') }}</dt><dd class="col-7">{{ $tgUser->language_code ?? '-' }}</dd>
+                    <dt class="col-5">{{ __('First seen') }}</dt><dd class="col-7">{{ $tgUser->created_at->format('Y-m-d H:i') }}</dd>
+                    <dt class="col-5">{{ __('Last message') }}</dt><dd class="col-7">{{ $tgUser->last_message_at?->format('Y-m-d H:i') ?? '-' }}</dd>
                 </dl>
             </div>
         </div>
@@ -77,6 +77,16 @@
 @push('scripts')
 <script>
 (() => {
+    const t = @js([
+        'autoOn' => __('Auto-reply ON'),
+        'autoOff' => __('Auto-reply OFF (manual chat)'),
+        'newMessage' => __('New message'),
+        'sending' => __('Sending…'),
+        'send' => __('Send'),
+        'sendFailed' => __('Send failed.'),
+        'networkError' => __('Network error, message not sent.'),
+        'saveLabel' => __('Name for this saved message (e.g. "Promo Nov"):'),
+    ]);
     const box = document.getElementById('chat-box');
     const form = document.getElementById('send-form');
     const input = document.getElementById('message-input');
@@ -99,7 +109,7 @@
 
     const setAutoReply = (enabled) => {
         autoSwitch.checked = enabled;
-        autoLabel.textContent = enabled ? 'Auto-reply ON' : 'Auto-reply OFF (manual chat)';
+        autoLabel.textContent = enabled ? t.autoOn : t.autoOff;
     };
 
     /** Fetch messages newer than lastId and append them. */
@@ -122,7 +132,7 @@
                     }
                     if (document.hidden && data.new_incoming > 0) {
                         unread += data.new_incoming;
-                        document.title = `(${unread}) New message · ${baseTitle}`;
+                        document.title = `(${unread}) ${t.newMessage} · ${baseTitle}`;
                     }
                 }
                 lastId = data.last_id;
@@ -153,7 +163,7 @@
         event.preventDefault();
         errorBox.classList.add('d-none');
         sendButton.disabled = true;
-        sendButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending…';
+        sendButton.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${t.sending}`;
         try {
             const response = await fetch(form.action, {
                 method: 'POST',
@@ -162,7 +172,7 @@
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
-                const errors = data.errors ? Object.values(data.errors).flat() : [data.message || 'Send failed.'];
+                const errors = data.errors ? Object.values(data.errors).flat() : [data.message || t.sendFailed];
                 errorBox.textContent = errors.join(' ');
                 errorBox.classList.remove('d-none');
                 return;
@@ -177,11 +187,11 @@
             await poll();
             scrollToBottom();
         } catch (e) {
-            errorBox.textContent = 'Network error, message not sent.';
+            errorBox.textContent = t.networkError;
             errorBox.classList.remove('d-none');
         } finally {
             sendButton.disabled = false;
-            sendButton.innerHTML = '<i class="bi bi-send"></i> Send';
+            sendButton.innerHTML = `<i class="bi bi-send"></i> ${t.send}`;
             input.focus();
         }
     });
@@ -237,7 +247,7 @@
         if (!saveForm) {
             return;
         }
-        const label = prompt('Name for this saved message (e.g. "Promo Nov"):', '');
+        const label = prompt(t.saveLabel, '');
         if (label === null) {
             event.preventDefault();
             return;

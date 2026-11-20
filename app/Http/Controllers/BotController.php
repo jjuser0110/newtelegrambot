@@ -39,10 +39,10 @@ class BotController extends Controller
 
         $request->validate([
             'token' => ['required', 'string', 'regex:/^\d+:[A-Za-z0-9_-]{30,}$/'],
-        ], ['token.regex' => 'This does not look like a Telegram bot token (e.g. 123456789:ABCdef...).']);
+        ], ['token.regex' => __('This does not look like a Telegram bot token (e.g. 123456789:ABCdef...).')]);
 
         if (! $user->canAddBot()) {
-            return back()->withErrors(['token' => "You have reached your bot limit ({$user->bot_limit}). Please contact the administrator."]);
+            return back()->withErrors(['token' => __('You have reached your bot limit (:limit). Please contact the administrator.', ['limit' => $user->bot_limit])]);
         }
 
         $token = trim($request->token);
@@ -50,11 +50,11 @@ class BotController extends Controller
         try {
             $me = (new TelegramApi($token))->getMe();
         } catch (Throwable $e) {
-            return back()->withInput()->withErrors(['token' => 'Could not connect to Telegram: '.$e->getMessage()]);
+            return back()->withInput()->withErrors(['token' => __('Could not connect to Telegram: :error', ['error' => $e->getMessage()])]);
         }
 
         if (Bot::where('telegram_bot_id', $me['id'])->exists()) {
-            return back()->withInput()->withErrors(['token' => 'This bot is already connected to an account.']);
+            return back()->withInput()->withErrors(['token' => __('This bot is already connected to an account.')]);
         }
 
         $bot = $user->bots()->create([
@@ -98,7 +98,7 @@ class BotController extends Controller
     {
         $this->ownBot($bot)->update(['is_active' => ! $bot->is_active]);
 
-        return back()->with('success', $bot->is_active ? 'Bot enabled.' : 'Bot paused (incoming messages are still saved, no auto-replies).');
+        return back()->with('success', $bot->is_active ? __('Bot enabled.') : __('Bot paused (incoming messages are still saved, no auto-replies).'));
     }
 
     public function destroy(Bot $bot)
@@ -112,7 +112,7 @@ class BotController extends Controller
         }
         $bot->delete();
 
-        return redirect()->route('bots.index')->with('success', 'Bot disconnected.');
+        return redirect()->route('bots.index')->with('success', __('Bot disconnected.'));
     }
 
     /** @return array{0:bool,1:string} */
@@ -123,18 +123,18 @@ class BotController extends Controller
         if (! str_starts_with($url, 'https://')) {
             $bot->update(['webhook_set' => false]);
 
-            return [false, 'Webhook not set: Telegram requires a public HTTPS APP_URL (current: '.config('app.url').'). For local testing run "php artisan telegram:poll".'];
+            return [false, __('Webhook not set: Telegram requires a public HTTPS APP_URL (current: :url). For local testing run "php artisan telegram:poll".', ['url' => config('app.url')])];
         }
 
         try {
             $bot->api()->setWebhook($url, $bot->webhook_secret);
             $bot->update(['webhook_set' => true]);
 
-            return [true, 'Webhook set to '.$url];
+            return [true, __('Webhook set to :url', ['url' => $url])];
         } catch (TelegramException $e) {
             $bot->update(['webhook_set' => false]);
 
-            return [false, 'Webhook failed: '.$e->getMessage()];
+            return [false, __('Webhook failed: :error', ['error' => $e->getMessage()])];
         }
     }
 }

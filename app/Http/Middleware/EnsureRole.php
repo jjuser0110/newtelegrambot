@@ -19,7 +19,7 @@ class EnsureRole
         if (! $user || ! $user->is_active) {
             Auth::logout();
 
-            return redirect()->route('login')->withErrors(['username' => 'Your account is disabled.']);
+            return redirect()->route('login')->withErrors(['username' => __('Your account is disabled.')]);
         }
 
         abort_unless(in_array($user->role, $roles, true), 403);

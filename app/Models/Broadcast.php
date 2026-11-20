@@ -30,18 +30,6 @@ class Broadcast extends Model
      */
     public const MAX_MESSAGES_PER_SECOND = 25;
 
-    /**
-     * Speed presets shown in the forms (messages per second => label).
-     *
-     * @var array<int, string>
-     */
-    public const SPEED_PRESETS = [
-        1 => 'Very slow – 1 / second (~3,600 per hour)',
-        5 => 'Slow – 5 / second (~18,000 per hour)',
-        15 => 'Normal – 15 / second (recommended)',
-        25 => 'Fast – 25 / second (maximum)',
-    ];
-
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_CANCELLED = 'cancelled';
@@ -83,6 +71,21 @@ class Broadcast extends Model
     }
 
     /**
+     * Speed presets shown in the forms, in the current panel language (messages per second => label).
+     *
+     * @return array<int, string>
+     */
+    public static function speedPresets(): array
+    {
+        return [
+            1 => __('Very slow – 1 / second (~3,600 per hour)'),
+            5 => __('Slow – 5 / second (~18,000 per hour)'),
+            15 => __('Normal – 15 / second (recommended)'),
+            25 => __('Fast – 25 / second (maximum)'),
+        ];
+    }
+
+    /**
      * Pause between two messages for the chosen speed.
      */
     public function sendIntervalMicroseconds(): int
@@ -120,9 +123,11 @@ class Broadcast extends Model
     public function contentSummary(): string
     {
         if ($this->savedMessage) {
-            return ucfirst($this->send_mode).' saved message: '.$this->savedMessage->label;
+            return $this->send_mode === 'forward'
+                ? __('Forward saved message: :label', ['label' => $this->savedMessage->label])
+                : __('Copy saved message: :label', ['label' => $this->savedMessage->label]);
         }
 
-        return (string) ($this->title ?: str($this->message)->limit(60) ?: '[image]');
+        return (string) ($this->title ?: str($this->message)->limit(60) ?: __('[image]'));
     }
 }
